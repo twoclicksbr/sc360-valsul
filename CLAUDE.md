@@ -109,6 +109,16 @@ Resposta do login:
 { "token": "1|abc...", "user": { "id": 1, "email": "...", "active": true, "person": { "id": 1, "name": "..." } } }
 ```
 
+### CORS (`config/cors.php`)
+
+| Chave | Valor |
+|-------|-------|
+| `paths` | `['api/*', 'valsul/*', 'sanctum/csrf-cookie']` |
+| `allowed_methods` | `['*']` |
+| `allowed_origins` | `['http://sc360-valsul.test:5173', 'http://localhost:5173']` |
+| `allowed_headers` | `['Content-Type', 'Authorization', 'Accept', 'X-Requested-With']` |
+| `supports_credentials` | `true` |
+
 ### Padrão de Desenvolvimento
 
 #### Controller Genérica
@@ -141,29 +151,34 @@ Sem mexer em rotas, sem criar controller de CRUD. Tudo dinâmico.
 - **Versão:** Metronic v9.4.5 — React 19 + Vite 7 + TypeScript + Tailwind CSS 4
 - **Layout de referência:** `C:\Herd\themeforest\metronic\crm`
 - **URL local:** http://sc360-valsul.test:5173
-- **Auth:** Supabase ainda ativo como adapter — substituição por Laravel Sanctum pendente (Fase 3)
+- **Auth:** Laravel Sanctum ✅ — adapter e provider implementados e em uso
 - **Status:** instalado, rodando em dev
 - **Layout em uso:** `Demo1Layout` (`frontend/src/layouts/demo1/`)
-- **Provider de auth em uso:** `AuthProvider` de `frontend/src/auth/providers/supabase-provider.tsx` (importado em `App.tsx`)
+- **Provider de auth em uso:** `AuthProvider` de `frontend/src/auth/providers/laravel-provider.tsx` (importado em `App.tsx`)
 
 ### Variáveis de Ambiente (`frontend/.env`)
 
 ```env
 VITE_APP_NAME=metronic-tailwind-react
 VITE_APP_VERSION=9.2.6
-VITE_SUPABASE_URL=your_supabase_url          # placeholder — não usado em produção
+
+## Laravel API
+VITE_API_URL=http://api.sc360-valsul.test
+
+## Supabase Configuration (placeholder — não utilizado)
+VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-# A adicionar:
-# VITE_API_URL=http://api.sc360-valsul.test
 ```
 
-### Auth atual (Supabase) — estrutura em `frontend/src/auth/`
+### Auth (Laravel Sanctum) — estrutura em `frontend/src/auth/`
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `adapters/supabase-adapter.ts` | Adapter Supabase (login, logout, register, OAuth, etc.) |
-| `providers/supabase-provider.tsx` | AuthProvider — expõe `login`, `logout`, `getUser`, etc. via context |
+| `adapters/laravel-adapter.ts` | Adapter Laravel — login/logout/me via `VITE_API_URL` |
+| `adapters/supabase-adapter.ts` | Adapter Supabase (legado — mantido, não utilizado) |
+| `providers/laravel-provider.tsx` | `AuthProvider` em uso — expõe `login`, `logout`, `getUser`, etc. via context |
+| `providers/supabase-provider.tsx` | Provider Supabase (legado — mantido, não utilizado) |
 | `context/auth-context.ts` | AuthContext + hook `useAuth()` |
 | `lib/models.ts` | `AuthModel` (`access_token`, `refresh_token?`) e `UserModel` |
 | `lib/helpers.ts` | getAuth/setAuth/removeAuth via localStorage |
@@ -173,16 +188,16 @@ VITE_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 ```
 src/
-├── App.tsx               ← importa AuthProvider de supabase-provider
+├── App.tsx               ← importa AuthProvider de laravel-provider
 ├── main.tsx
 ├── auth/                 ← providers, adapters, pages de login/register
-│   ├── adapters/         ← supabase-adapter.ts (a criar: laravel-adapter.ts)
+│   ├── adapters/         ← laravel-adapter.ts (em uso) + supabase-adapter.ts (legado)
 │   ├── context/          ← auth-context.ts + useAuth()
-│   ├── forms/            ← signin-schema.ts, signup-schema.ts
+│   ├── forms/            ← signin-schema.ts, signup-schema.ts, reset-password-schema.ts
 │   ├── layouts/          ← branded.tsx, classic.tsx
 │   ├── lib/              ← models.ts, helpers.ts
 │   ├── pages/            ← signin-page.tsx, signup-page.tsx, etc.
-│   ├── providers/        ← supabase-provider.tsx
+│   ├── providers/        ← laravel-provider.tsx (em uso) + supabase-provider.tsx (legado)
 │   ├── auth-routing.tsx
 │   ├── auth-routes.tsx
 │   └── require-auth.tsx
@@ -208,7 +223,7 @@ src/
 |------|-----------|
 | **Fase 1** | Criar migration, model, request, controller (modules, people, users) ✅ |
 | **Fase 2** | Montar rotas (routes/api.php com prefixo `valsul/{module}`, sem prefixo /api) ✅ |
-| **Fase 3** | Login + tela — backend ✅ (AuthController + Sanctum) / frontend pendente (substituir Supabase por Laravel adapter) |
+| **Fase 3** | Login + tela — backend ✅ (AuthController + Sanctum) / frontend ✅ (laravel-adapter.ts + laravel-provider.tsx implementados) |
 | **Fase 4** | Dashboard demonstração |
 | **Fase 5** | Tela padrão index (grid) |
 | **Fase 5.1** | Tela show/create/edit/delete/restore (página inteira) |
