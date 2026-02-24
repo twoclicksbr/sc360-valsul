@@ -15,6 +15,12 @@
 
 ---
 
+## Sobre o Projeto
+
+Sistema simples de gerenciamento para loja de auto peças, desenvolvido em **Laravel + JavaScript**. O objetivo é ter um sistema funcional em 20 dias, começando pelo cadastro de pessoas, autenticação e submódulos reutilizáveis.
+
+---
+
 ## Stack
 
 - **Backend:** Laravel 12 (API)
@@ -29,7 +35,7 @@
 Todas as tabelas seguem a ordem de colunas:
 
 ```
-id → campos específicos → order → active → timestamps → deleted_at (softDeletes)
+id → campos específicos → order (default 1) → active (default true) → timestamps → deleted_at (softDeletes)
 ```
 
 ---
@@ -47,7 +53,7 @@ id → campos específicos → order → active → timestamps → deleted_at (s
 
 | Tabela | Campos |
 |--------|--------|
-| `modules` | name, type (módulo/submódulo), name_table, name_url, model, request, controller_front, controller_back, description_index, description_show, description_store, description_update, description_delete, description_restore, after_store, after_update, after_restore, active, order |
+| `modules` | name, type (módulo/submódulo), name_table (unique), name_url (unique), model, request, controller_front, controller_back, description_index, description_show, description_store, description_update, description_delete, description_restore, after_store, after_update, after_restore, active, order |
 
 Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
 
@@ -162,5 +168,5 @@ Sem mexer em rotas, sem criar controller de CRUD. Tudo dinâmico.
 - Inglês para nomes de variáveis, classes, métodos e arquivos de código
 - Sempre usar `softDeletes` em todas as tabelas
 - `active` é booleano, padrão `true`
-- `order` é inteiro, usado para drag & drop de ordenação
+- `order` é inteiro, padrão `1`, usado para drag & drop de ordenação
 - Nunca criar rotas ou controllers de CRUD específicos — tudo via `ModuleController` genérica

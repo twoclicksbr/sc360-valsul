@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan migrate:*)",
+      "Bash(/c/Users/alexa/.config/herd/bin/php84 artisan:*)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan migrate)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
