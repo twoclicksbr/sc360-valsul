@@ -2,56 +2,105 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\ModuleRequest;
 use App\Models\Module;
 use Illuminate\Http\JsonResponse;
 
 class ModuleController extends Controller
 {
-    public function index(): JsonResponse
+    private function resolveModule(string $nameUrl): Module
     {
-        $modules = Module::orderBy('order')->orderBy('name')->get();
+        $module = Module::where('name_url', $nameUrl)->first();
 
-        return response()->json($modules);
+        if (! $module) {
+            abort(404, "Módulo '{$nameUrl}' não encontrado.");
+        }
+
+        return $module;
     }
 
-    public function show(int $id): JsonResponse
+    private function modelClass(Module $module): string
     {
-        $module = Module::withTrashed()->findOrFail($id);
-
-        return response()->json($module);
+        return "App\\Models\\{$module->model}";
     }
 
-    public function store(ModuleRequest $request): JsonResponse
+    private function requestClass(Module $module): string
     {
-        $module = Module::create($request->validated());
-
-        return response()->json($module, 201);
+        return "App\\Http\\Requests\\{$module->request}";
     }
 
-    public function update(ModuleRequest $request, int $id): JsonResponse
+    public function index(string $module): JsonResponse
     {
-        $module = Module::findOrFail($id);
-        $module->update($request->validated());
+        $mod        = $this->resolveModule($module);
+        $modelClass = $this->modelClass($mod);
+        $instance   = new $modelClass;
 
-        return response()->json($module);
+        $query = $modelClass::query();
+
+        if (in_array('order', $instance->getFillable())) {
+            $query->orderBy('order');
+        }
+
+        $items = $query->orderBy('id')->get();
+
+        return response()->json($items);
     }
 
-    public function destroy(int $id): JsonResponse
+    public function show(string $module, int $id): JsonResponse
     {
-        $module = Module::findOrFail($id);
-        $module->active = false;
-        $module->save();
-        $module->delete();
+        $mod        = $this->resolveModule($module);
+        $modelClass = $this->modelClass($mod);
 
-        return response()->json(['message' => 'Módulo deletado com sucesso.']);
+        $item = $modelClass::withTrashed()->findOrFail($id);
+
+        return response()->json($item);
     }
 
-    public function restore(int $id): JsonResponse
+    public function store(string $module): JsonResponse
     {
-        $module = Module::withTrashed()->findOrFail($id);
-        $module->restore();
+        $mod          = $this->resolveModule($module);
+        $modelClass   = $this->modelClass($mod);
+        $requestClass = $this->requestClass($mod);
 
-        return response()->json($module);
+        $formRequest = app($requestClass);
+        $item        = $modelClass::create($formRequest->validated());
+
+        return response()->json($item, 201);
+    }
+
+    public function update(string $module, int $id): JsonResponse
+    {
+        $mod          = $this->resolveModule($module);
+        $modelClass   = $this->modelClass($mod);
+        $requestClass = $this->requestClass($mod);
+
+        $item        = $modelClass::findOrFail($id);
+        $formRequest = app($requestClass);
+        $item->update($formRequest->validated());
+
+        return response()->json($item);
+    }
+
+    public function destroy(string $module, int $id): JsonResponse
+    {
+        $mod        = $this->resolveModule($module);
+        $modelClass = $this->modelClass($mod);
+
+        $item         = $modelClass::findOrFail($id);
+        $item->active = false;
+        $item->save();
+        $item->delete();
+
+        return response()->json(['message' => 'Registro deletado com sucesso.']);
+    }
+
+    public function restore(string $module, int $id): JsonResponse
+    {
+        $mod        = $this->resolveModule($module);
+        $modelClass = $this->modelClass($mod);
+
+        $item = $modelClass::withTrashed()->findOrFail($id);
+        $item->restore();
+
+        return response()->json($item);
     }
 }

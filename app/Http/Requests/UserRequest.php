@@ -14,7 +14,7 @@ class UserRequest extends FormRequest
 
     public function rules(): array
     {
-        $id = $this->route('user');
+        $id = $this->route('id');
 
         return [
             'person_id' => ['required', 'integer', 'exists:people,id'],
@@ -33,5 +33,16 @@ class UserRequest extends FormRequest
 
             'active' => ['nullable', 'boolean'],
         ];
+    }
+
+    public function validated($key = null, $default = null): array
+    {
+        $data = parent::validated($key, $default);
+
+        if (array_key_exists('password', $data) && empty($data['password'])) {
+            unset($data['password']);
+        }
+
+        return $data;
     }
 }

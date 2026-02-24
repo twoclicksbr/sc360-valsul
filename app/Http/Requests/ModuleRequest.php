@@ -14,7 +14,7 @@ class ModuleRequest extends FormRequest
 
     public function rules(): array
     {
-        $id = $this->route('module');
+        $id = $this->route('id');
 
         return [
             'name' => ['required', 'string', 'max:255'],
