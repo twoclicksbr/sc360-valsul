@@ -36,14 +36,14 @@ Sistema simples de gerenciamento para loja de auto peças, desenvolvido em **Lar
 
 ---
 
-## Documentação da API
+## Backend (Laravel)
+
+### Documentação da API
 
 - **URL local:** https://sc360-valsul.test/docs
 - **Regenerar:** `php artisan scribe:generate`
 
----
-
-## Padrão de Tabelas
+### Padrão de Tabelas
 
 Todas as tabelas seguem a ordem de colunas:
 
@@ -51,18 +51,16 @@ Todas as tabelas seguem a ordem de colunas:
 id → campos específicos → order (default 1) → active (default true) → timestamps → deleted_at (softDeletes)
 ```
 
----
+### Estrutura de Tabelas
 
-## Estrutura de Tabelas
-
-### Principais
+#### Principais
 
 | Tabela | Campos |
 |--------|--------|
 | `people` | name, birth_date, order, active |
 | `users` | person_id (FK people), email, password, active |
 
-### Configuração
+#### Configuração
 
 | Tabela | Campos |
 |--------|--------|
@@ -70,7 +68,7 @@ id → campos específicos → order (default 1) → active (default true) → t
 
 Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
 
-### Tabelas de Tipo (referência)
+#### Tabelas de Tipo (referência)
 
 | Tabela | Campos |
 |--------|--------|
@@ -78,7 +76,7 @@ Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
 | `type_contacts` | name, mask, order, active |
 | `type_addresses` | name, order, active |
 
-### Submódulos (reutilizáveis via module_id + register_id)
+#### Submódulos (reutilizáveis via module_id + register_id)
 
 | Tabela | Campos |
 |--------|--------|
@@ -90,15 +88,13 @@ Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
 
 **Total MVP: 11 tabelas**
 
----
+### Padrão de Desenvolvimento
 
-## Padrão de Desenvolvimento
-
-### Controller Genérica
+#### Controller Genérica
 
 Uma única `ModuleController` resolve o CRUD de qualquer módulo. Ela busca as configurações na tabela `modules` (model, request, etc.) e executa dinamicamente. Somente em casos extremos se cria uma controller específica.
 
-### Rota Genérica
+#### Rota Genérica
 
 `{module}` corresponde ao `name_url` da tabela `modules`. Uma única rota atende módulos e submódulos.
 
@@ -106,7 +102,7 @@ Padrão de URL: `api.{domínio}/valsul/{module}` e `api.{domínio}/valsul/{modul
 
 As rotas da API estão restritas ao subdomínio `api` via `env('API_DOMAIN')` (ex: `api.sc360-valsul.test`). O `apiPrefix` está vazio — sem prefixo `/api` no path, apenas no subdomínio.
 
-### Configuração de Módulo
+#### Configuração de Módulo
 
 Os campos `model`, `request`, `controller_front` e `controller_back` são combobox que fazem scan das respectivas pastas e listam os arquivos disponíveis.
 
@@ -115,6 +111,38 @@ Os campos `model`, `request`, `controller_front` e `controller_back` são combob
 2. Cadastrar o módulo na tela de modules selecionando os arquivos nos combos
 
 Sem mexer em rotas, sem criar controller de CRUD. Tudo dinâmico.
+
+---
+
+## Frontend (Metronic React)
+
+- **Pasta:** `frontend/`
+- **Versão:** Metronic v9.4.5 — React 19 + Vite 7 + TypeScript + Tailwind CSS 4
+- **Layout de referência:** `C:\Herd\themeforest\metronic\crm`
+- **URL local:** http://sc360-valsul.test:5173
+- **Auth:** Supabase desabilitado (placeholder) — será substituído por auth Laravel
+- **Status:** instalado, rodando em dev
+
+### Estrutura frontend/src/
+
+```
+src/
+├── App.tsx
+├── main.tsx
+├── auth/           ← providers, adapters, pages de login/register
+├── components/     ← componentes reutilizáveis
+├── config/         ← configurações do app
+├── css/            ← estilos globais
+├── errors/         ← páginas de erro (404, etc.)
+├── hooks/          ← hooks customizados
+├── i18n/           ← internacionalização
+├── layouts/        ← layouts base (sidebar, header, etc.)
+├── lib/            ← supabase.ts e utilitários
+├── pages/          ← páginas por módulo
+├── partials/       ← partes reutilizáveis de UI
+├── providers/      ← providers React (tema, etc.)
+└── routing/        ← definição de rotas React Router
+```
 
 ---
 
