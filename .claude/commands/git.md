@@ -6,6 +6,5 @@ Execute os seguintes passos:
 2. Analisar todos os arquivos modificados/adicionados/removidos
 3. Ler o conteúdo das alterações com: git diff
 4. Gerar uma mensagem de commit clara e descritiva baseada nas mudanças
-5. Me explicar exatamente o que será commitado antes de prosseguir
-6. Aguardar minha confirmação
-7. Após confirmação: git add . && git commit -m "<mensagem gerada>" && git push
+5. Executar: git add . && git commit -m "<mensagem gerada>" && git push
+6. Mostrar resumo do que foi feito
