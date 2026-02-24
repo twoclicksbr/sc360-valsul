@@ -102,9 +102,9 @@ Uma única `ModuleController` resolve o CRUD de qualquer módulo. Ela busca as c
 
 `{module}` corresponde ao `name_url` da tabela `modules`. Uma única rota atende módulos e submódulos.
 
-Padrão de URL: `{domínio}/valsul/{module}` e `{domínio}/valsul/{module}/{id}`
+Padrão de URL: `api.{domínio}/valsul/{module}` e `api.{domínio}/valsul/{module}/{id}`
 
-O `apiPrefix` está vazio — as rotas respondem diretamente na raiz (sem prefixo `/api`).
+As rotas da API estão restritas ao subdomínio `api` via `env('API_DOMAIN')` (ex: `api.sc360-valsul.test`). O `apiPrefix` está vazio — sem prefixo `/api` no path, apenas no subdomínio.
 
 ### Configuração de Módulo
 

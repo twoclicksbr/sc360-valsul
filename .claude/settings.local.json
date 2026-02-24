@@ -6,7 +6,14 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan migrate)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" /c/Users/alexa/composer.phar require knuckleswtf/scribe --no-interaction)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/composer.bat\" require knuckleswtf/scribe --no-interaction)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/composer.bat\" require knuckleswtf/scribe --no-interaction -W)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan vendor:publish:*)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan scribe:generate)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan route:list)",
+      "Bash(C:\\\\Users\\\\alexa\\\\.config\\\\herd\\\\bin\\\\php84\\\\php.exe artisan:*)"
     ]
   }
 }
