@@ -1,7 +1,7 @@
 import { AuthModel, UserModel } from '@/auth/lib/models';
+import { getTenantSlug } from '@/lib/tenant';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
-const TENANT_SLUG = import.meta.env.VITE_TENANT_SLUG as string;
 
 interface LaravelUser {
   id: number;
@@ -41,7 +41,7 @@ async function apiFetch(
 
 export const LaravelAdapter = {
   async login(email: string, password: string): Promise<{ auth: AuthModel; user: UserModel }> {
-    const res = await apiFetch(`/v1/${TENANT_SLUG}/auth/login`, {
+    const res = await apiFetch(`/v1/${getTenantSlug()}/auth/login`, {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -58,14 +58,14 @@ export const LaravelAdapter = {
   },
 
   async logout(token: string): Promise<void> {
-    await apiFetch(`/v1/${TENANT_SLUG}/auth/logout`, {
+    await apiFetch(`/v1/${getTenantSlug()}/auth/logout`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
   },
 
   async me(token: string): Promise<UserModel | null> {
-    const res = await apiFetch(`/v1/${TENANT_SLUG}/auth/me`, {
+    const res = await apiFetch(`/v1/${getTenantSlug()}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 

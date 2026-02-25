@@ -15,7 +15,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 3000,
   },
   server: {
-    host: 'sc360.test',
+    host: '0.0.0.0',
     port: 5173,
     https: false,
   },
