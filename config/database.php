@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'main'),
 
     /*
     |--------------------------------------------------------------------------
@@ -96,6 +96,34 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ],
+
+        'main' => [
+            'driver'         => 'pgsql',
+            'host'           => env('DB_HOST', '127.0.0.1'),
+            'port'           => env('DB_PORT', '5432'),
+            'database'       => env('DB_DATABASE', 'sc360_main'),
+            'username'       => env('DB_USERNAME', 'postgres'),
+            'password'       => env('DB_PASSWORD', ''),
+            'charset'        => 'utf8',
+            'prefix'         => '',
+            'prefix_indexes' => true,
+            'search_path'    => 'public',
+            'sslmode'        => env('DB_SSLMODE', 'prefer'),
+        ],
+
+        'tenant' => [
+            'driver'         => 'pgsql',
+            'host'           => env('DB_HOST', '127.0.0.1'),
+            'port'           => env('DB_PORT', '5432'),
+            'database'       => env('TENANT_DB', 'sc360_valsul'),
+            'username'       => env('TENANT_DB_USERNAME', 'postgres'),
+            'password'       => env('TENANT_DB_PASSWORD', ''),
+            'charset'        => 'utf8',
+            'prefix'         => '',
+            'prefix_indexes' => true,
+            'search_path'    => 'public',
+            'sslmode'        => env('DB_SSLMODE', 'prefer'),
         ],
 
         'sqlsrv' => [

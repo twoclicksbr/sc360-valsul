@@ -24,7 +24,21 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan db:seed)",
       "Bash(npx tsc:*)",
       "Bash(curl:*)",
-      "Bash(php artisan view:clear)"
+      "Bash(php artisan view:clear)",
+      "Bash(PGPASSWORD=TwoClicks2026@ \"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h 127.0.0.1 -c \"SELECT 1;\")",
+      "Bash(PGPASSWORD=Millena2012@ \"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h 127.0.0.1 -c \"SELECT 1;\")",
+      "Bash(PHP=/c/Users/alexa/.config/herd/bin/php84/php.exe)",
+      "Bash(__NEW_LINE_985be961f910ec63__ echo \"=== MAIN migrations ===\")",
+      "Bash($PHP artisan migrate --path=database/migrations/main --database=main --force)",
+      "Bash(__NEW_LINE_985be961f910ec63__ echo \"\")",
+      "Bash($PHP artisan migrate --path=database/migrations/tenant --database=tenant --force)",
+      "Bash(PGPASSWORD=Millena2012@ \"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h 127.0.0.1 -d sc360_main -c \"DROP TABLE IF EXISTS tenants CASCADE;\")",
+      "Bash(__NEW_LINE_ac12c12b79f2715f__ echo \"=== MAIN migrations ===\")",
+      "Bash(__NEW_LINE_ce6370009530d13d__ echo \"=== SEEDS ===\")",
+      "Bash($PHP artisan db:seed)",
+      "Bash(PGPASSWORD=Millena2012@ \"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h 127.0.0.1 -d sc360_main -c \"SELECT id, name, slug, db_name, expiration_date, active FROM tenants;\")",
+      "Bash(__NEW_LINE_3472ff23c59ac11c__ echo \"\")",
+      "Bash(__NEW_LINE_3472ff23c59ac11c__ PGPASSWORD=Millena2012@ \"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h 127.0.0.1 -d sc360_valsul -c \"SELECT u.id, u.email, u.active, p.name FROM users u JOIN people p ON p.id = u.person_id;\")"
     ]
   }
 }
