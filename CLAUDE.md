@@ -22,7 +22,66 @@
 
 ## Sobre o Projeto
 
-Sistema simples de gerenciamento para loja de auto peças, desenvolvido em **Laravel + JavaScript**. O objetivo é ter um sistema funcional em 20 dias, começando pelo cadastro de pessoas, autenticação e submódulos reutilizáveis.
+Plataforma SaaS multi-tenant de gerenciamento para auto peças, desenvolvida em **Laravel + JavaScript**. Cada cliente (tenant) possui banco de dados isolado. Um banco central (`sc360_main`) gerencia os tenants. O objetivo é ter um sistema funcional em 20 dias, começando pelo cadastro de pessoas, autenticação e submódulos reutilizáveis.
+
+---
+
+## Arquitetura Multi-Tenancy
+
+### Conceito
+- SmartClick360° é uma plataforma SaaS que atende múltiplos clientes (tenants)
+- Cada tenant tem seu próprio banco de dados isolado
+- Um banco central (`sc360_main`) gerencia os tenants
+
+### Bancos de Dados
+
+| Banco | Conteúdo |
+|-------|----------|
+| `sc360_main` | tenants, landlord users, planos |
+| `sc360_{db_name}` | people, users, modules, etc. (por tenant) |
+
+### URLs
+
+**Frontend:**
+
+| URL | Acesso |
+|-----|--------|
+| `admin.smartclick360.com` | Landlord (admin SC360°) |
+| `{slug}.smartclick360.com` | Tenant (cliente) |
+
+**API (centralizada):**
+
+| Rota | Banco |
+|------|-------|
+| `api.smartclick360.com/v1/admin/auth/login` | sc360_main |
+| `api.smartclick360.com/v1/admin/{module}` | sc360_main |
+| `api.smartclick360.com/v1/{tenant}/auth/login` | sc360_{db_name} |
+| `api.smartclick360.com/v1/{tenant}/{module}` | sc360_{db_name} |
+
+**Local (dev):**
+
+| URL | Acesso |
+|-----|--------|
+| `admin.sc360.test` | Landlord |
+| `valsul.sc360.test` | Tenant |
+| `api.sc360.test/v1/{tenant}/{module}` | API |
+
+### Fluxo de Criação de Tenant
+
+1. Landlord cadastra cliente no admin
+2. Sistema gera automaticamente:
+   - slug do name (editável)
+   - db_name e db_user do slug (troca hífen por underscore)
+   - db_password aleatório
+   - expiration_date = hoje + 30 dias
+3. Cria banco `sc360_{db_name}` no PostgreSQL
+4. Roda todas as migrations no banco novo
+5. Cria primeiro usuário admin do tenant
+
+### Validade
+
+- Quando `expiration_date` expirar, exibe tarja vermelha no topo do site: "Sua assinatura expirou em dd/mm/yyyy. Entre em contato para renovar."
+- NÃO bloqueia o acesso, apenas avisa
 
 ---
 
@@ -53,7 +112,13 @@ id → campos específicos → order (default 1) → active (default true) → t
 
 ### Estrutura de Tabelas
 
-#### Principais
+#### Banco sc360_main
+
+| Tabela | Campos |
+|--------|--------|
+| `tenants` | name, slug (unique), db_name, db_user, db_password (encrypted), expiration_date, order, active |
+
+#### Principais (por tenant)
 
 | Tabela | Campos |
 |--------|--------|
@@ -133,9 +198,9 @@ Uma única `ModuleController` resolve o CRUD de qualquer módulo. Ela busca as c
 
 `{module}` corresponde ao `name_url` da tabela `modules`. Uma única rota atende módulos e submódulos.
 
-Padrão de URL: `api.{domínio}/valsul/{module}` e `api.{domínio}/valsul/{module}/{id}`
+Padrão de URL: `api.{domínio}/v1/{tenant}/{module}` e `api.{domínio}/v1/{tenant}/{module}/{id}`
 
-As rotas da API estão restritas ao subdomínio `api` via `env('API_DOMAIN')` (ex: `api.sc360.test`). O `apiPrefix` está vazio — sem prefixo `/api` no path, apenas no subdomínio.
+As rotas da API estão restritas ao subdomínio `api` via `env('API_DOMAIN')` (ex: `api.sc360.test`). O prefixo de path é `/v1/{tenant}` — sem prefixo `/api`, apenas no subdomínio.
 
 #### Configuração de Módulo
 
