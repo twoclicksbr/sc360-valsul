@@ -1,4 +1,3 @@
-import { useCallback, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { MENU_SIDEBAR, MENU_SIDEBAR_CUSTOM } from '@/config/menu.config';
@@ -15,26 +14,9 @@ import {
   MenubarSubTrigger,
   MenubarTrigger,
 } from '@/components/ui/menubar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 export function NavbarMenu() {
   const { pathname } = useLocation();
-  const [dashboardOpen, setDashboardOpen] = useState(false);
-  const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleDashboardEnter = useCallback(() => {
-    if (closeTimeout.current) clearTimeout(closeTimeout.current);
-    setDashboardOpen(true);
-  }, []);
-
-  const handleDashboardLeave = useCallback(() => {
-    closeTimeout.current = setTimeout(() => setDashboardOpen(false), 150);
-  }, []);
 
   let navbarMenu;
 
@@ -51,6 +33,14 @@ export function NavbarMenu() {
   }
 
   const { isActive, hasActiveChild } = useMenu(pathname);
+
+  const dashboardItems = [
+    { title: 'Geral', path: '/dashboard' },
+    { title: 'Pessoas', path: '/pessoas' },
+    { title: 'Produtos', path: '/produtos' },
+    { title: 'Comercial', path: '/comercial' },
+    { title: 'Financeiro', path: '/financeiro' },
+  ];
 
   const buildMenu = (items: MenuConfig) => {
     return items.map((item, index) => {
@@ -139,51 +129,31 @@ export function NavbarMenu() {
     <div className="grid">
       <div className="kt-scrollable-x-auto flex items-stretch">
         <Menubar className="space-x-0 flex items-stretch border-none bg-transparent gap-5 p-0 h-auto">
-          <div
-            className="flex items-stretch"
-            onMouseEnter={handleDashboardEnter}
-            onMouseLeave={handleDashboardLeave}
-          >
-            <DropdownMenu open={dashboardOpen} onOpenChange={setDashboardOpen}>
-              <DropdownMenuTrigger
-                className={cn(
-                  'flex items-center gap-1 px-0 py-3.5 text-sm font-medium text-secondary-foreground text-nowrap',
-                  'rounded-none border-b-2 border-transparent bg-transparent!',
-                  'hover:text-mono hover:bg-transparent',
-                  'focus:text-mono focus:bg-transparent focus-visible:outline-none',
-                  'data-[state=open]:bg-transparent data-[state=open]:text-mono',
-                  'data-[here=true]:text-mono data-[here=true]:border-mono',
-                )}
-                data-here={isActive('/dashboard') || undefined}
-              >
-                Dashboard
-                <ChevronDown className="ms-auto size-3.5!" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="min-w-[175px]"
-                align="start"
-                sideOffset={0}
-                onMouseEnter={handleDashboardEnter}
-                onMouseLeave={handleDashboardLeave}
-              >
-                <DropdownMenuItem asChild>
-                  <Link to="/dashboard">Geral</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/pessoas">Pessoas</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/produtos">Produtos</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/comercial">Comercial</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/financeiro">Financeiro</Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <MenubarMenu>
+            <MenubarTrigger
+              className={cn(
+                'flex items-center gap-1 px-0 py-3.5 text-sm text-secondary-foreground text-nowrap',
+                'rounded-none border-b-2 border-transparent bg-transparent!',
+                'hover:text-mono hover:bg-transparent',
+                'focus:text-mono focus:bg-transparent',
+                'data-[state=open]:bg-transparent data-[state=open]:text-mono',
+                'data-[here=true]:text-mono data-[here=true]:border-mono',
+              )}
+              data-here={
+                dashboardItems.some((i) => isActive(i.path)) || undefined
+              }
+            >
+              Dashboard
+              <ChevronDown className="ms-auto size-3.5!" />
+            </MenubarTrigger>
+            <MenubarContent className="min-w-[175px]" sideOffset={0}>
+              {dashboardItems.map((item, index) => (
+                <MenubarItem key={index} asChild data-active={isActive(item.path) || undefined}>
+                  <Link to={item.path}>{item.title}</Link>
+                </MenubarItem>
+              ))}
+            </MenubarContent>
+          </MenubarMenu>
           {buildMenu(navbarMenu.children as MenuConfig)}
         </Menubar>
       </div>
