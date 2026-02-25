@@ -123,7 +123,7 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Alterando registro' : 'Criando registro'}</DialogTitle>
         </DialogHeader>

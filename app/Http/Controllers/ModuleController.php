@@ -59,10 +59,11 @@ class ModuleController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $id): JsonResponse
+    public function show(Request $request): JsonResponse
     {
         $mod        = $this->resolveModule($request->route('module'));
         $modelClass = $this->modelClass($mod);
+        $id         = (int) $request->route('id');
 
         $item = $modelClass::withTrashed()->findOrFail($id);
 
@@ -81,11 +82,12 @@ class ModuleController extends Controller
         return response()->json($item, 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request): JsonResponse
     {
         $mod          = $this->resolveModule($request->route('module'));
         $modelClass   = $this->modelClass($mod);
         $requestClass = $this->requestClass($mod);
+        $id           = (int) $request->route('id');
 
         $item        = $modelClass::findOrFail($id);
         $formRequest = app($requestClass);
@@ -94,10 +96,11 @@ class ModuleController extends Controller
         return response()->json($item);
     }
 
-    public function destroy(Request $request, int $id): JsonResponse
+    public function destroy(Request $request): JsonResponse
     {
         $mod        = $this->resolveModule($request->route('module'));
         $modelClass = $this->modelClass($mod);
+        $id         = (int) $request->route('id');
 
         $item         = $modelClass::findOrFail($id);
         $item->active = false;
@@ -107,10 +110,11 @@ class ModuleController extends Controller
         return response()->json(['message' => 'Registro deletado com sucesso.']);
     }
 
-    public function restore(Request $request, int $id): JsonResponse
+    public function restore(Request $request): JsonResponse
     {
         $mod        = $this->resolveModule($request->route('module'));
         $modelClass = $this->modelClass($mod);
+        $id         = (int) $request->route('id');
 
         $item = $modelClass::withTrashed()->findOrFail($id);
         $item->restore();

@@ -228,17 +228,17 @@ export function TenantsPage() {
     fetchData();
   }, [fetchData]);
 
-  function handleEdit(tenant: TenantForEdit) {
+  const handleEdit = useCallback((tenant: TenantForEdit) => {
     setSelectedTenant(tenant);
     setModalOpen(true);
-  }
+  }, []);
 
-  function handleModalOpenChange(open: boolean) {
+  const handleModalOpenChange = useCallback((open: boolean) => {
     setModalOpen(open);
     if (!open) setSelectedTenant(null);
-  }
+  }, []);
 
-  const columns = useMemo(() => buildColumns(handleEdit), []);
+  const columns = useMemo(() => buildColumns(handleEdit), [handleEdit]);
 
   const table = useReactTable<Tenant>({
     data,
