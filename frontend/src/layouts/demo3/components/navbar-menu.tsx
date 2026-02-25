@@ -139,47 +139,51 @@ export function NavbarMenu() {
     <div className="grid">
       <div className="kt-scrollable-x-auto flex items-stretch">
         <Menubar className="space-x-0 flex items-stretch border-none bg-transparent gap-5 p-0 h-auto">
-          <DropdownMenu open={dashboardOpen} onOpenChange={setDashboardOpen}>
-            <DropdownMenuTrigger
-              className={cn(
-                'flex items-center gap-1 px-0 py-3.5 text-sm font-medium text-secondary-foreground text-nowrap',
-                'rounded-none border-b-2 border-transparent bg-transparent!',
-                'hover:text-mono hover:bg-transparent',
-                'focus:text-mono focus:bg-transparent focus-visible:outline-none',
-                'data-[state=open]:bg-transparent data-[state=open]:text-mono',
-                'data-[here=true]:text-mono data-[here=true]:border-mono',
-              )}
-              data-here={isActive('/dashboard') || undefined}
-              onMouseEnter={handleDashboardEnter}
-              onMouseLeave={handleDashboardLeave}
-            >
-              Dashboard
-              <ChevronDown className="ms-auto size-3.5!" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="min-w-[175px]"
-              align="start"
-              sideOffset={0}
-              onMouseEnter={handleDashboardEnter}
-              onMouseLeave={handleDashboardLeave}
-            >
-              <DropdownMenuItem asChild>
-                <Link to="/dashboard">Geral</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/pessoas">Pessoas</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/produtos">Produtos</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/comercial">Comercial</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/financeiro">Financeiro</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div
+            className="flex items-stretch"
+            onMouseEnter={handleDashboardEnter}
+            onMouseLeave={handleDashboardLeave}
+          >
+            <DropdownMenu open={dashboardOpen} onOpenChange={setDashboardOpen}>
+              <DropdownMenuTrigger
+                className={cn(
+                  'flex items-center gap-1 px-0 py-3.5 text-sm font-medium text-secondary-foreground text-nowrap',
+                  'rounded-none border-b-2 border-transparent bg-transparent!',
+                  'hover:text-mono hover:bg-transparent',
+                  'focus:text-mono focus:bg-transparent focus-visible:outline-none',
+                  'data-[state=open]:bg-transparent data-[state=open]:text-mono',
+                  'data-[here=true]:text-mono data-[here=true]:border-mono',
+                )}
+                data-here={isActive('/dashboard') || undefined}
+              >
+                Dashboard
+                <ChevronDown className="ms-auto size-3.5!" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="min-w-[175px]"
+                align="start"
+                sideOffset={0}
+                onMouseEnter={handleDashboardEnter}
+                onMouseLeave={handleDashboardLeave}
+              >
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard">Geral</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/pessoas">Pessoas</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/produtos">Produtos</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/comercial">Comercial</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/financeiro">Financeiro</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           {buildMenu(navbarMenu.children as MenuConfig)}
         </Menubar>
       </div>
