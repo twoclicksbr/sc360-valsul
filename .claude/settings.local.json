@@ -23,7 +23,8 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan config:publish cors)",
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan db:seed)",
       "Bash(npx tsc:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(php artisan view:clear)"
     ]
   }
 }
