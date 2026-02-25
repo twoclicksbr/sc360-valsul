@@ -3,6 +3,7 @@ import { RequireAuth } from '@/auth/require-auth';
 import { ErrorRouting } from '@/errors/error-routing';
 import { Demo3Layout } from '@/layouts/demo3/layout';
 import { TenantsPage } from '@/pages/tenants/page';
+import { getTenantSlug } from '@/lib/tenant';
 import { PessoasPage } from '@/pages/pessoas/page';
 import { ProdutosPage } from '@/pages/produtos/page';
 import { ComprasPage } from '@/pages/compras/page';
@@ -391,7 +392,10 @@ export function AppRoutingSetup() {
             element={<AllProductsPage />}
           />
           <Route path="/auth/get-started" element={<AccountGetStartedPage />} />
-          <Route path="/tenants" element={<TenantsPage />} />
+          {getTenantSlug() === 'admin'
+            ? <Route path="/tenants" element={<TenantsPage />} />
+            : <Route path="/tenants" element={<Navigate to="/dashboard" />} />
+          }
           <Route path="/pessoas" element={<PessoasPage />} />
           <Route path="/produtos" element={<ProdutosPage />} />
           <Route path="/compras" element={<ComprasPage />} />

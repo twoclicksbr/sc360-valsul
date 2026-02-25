@@ -44,7 +44,11 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan route:list --path=v1)",
       "Bash(php artisan route:list)",
       "Bash(/c/Users/Public/Herd/bin/php84/php.exe /c/Herd/sc360/artisan route:list)",
-      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" /c/Herd/sc360/artisan route:list)"
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" /c/Herd/sc360/artisan route:list)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan db:seed --class=MainSeeder --database=main)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan tinker --database=main 2)",
+      "Bash(1:*)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan tinker 2)"
     ]
   }
 }

@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { getTenantSlug } from '@/lib/tenant';
 import { MENU_SIDEBAR, MENU_SIDEBAR_CUSTOM } from '@/config/menu.config';
 import { MenuConfig } from '@/config/types';
 import { cn } from '@/lib/utils';
@@ -34,9 +35,11 @@ export function NavbarMenu() {
 
   const { isActive, hasActiveChild } = useMenu(pathname);
 
+  const isAdmin = getTenantSlug() === 'admin';
+
   const dashboardItems = [
     { title: 'Geral', path: '/dashboard' },
-    { title: 'Tenants', path: '/tenants' },
+    ...(isAdmin ? [{ title: 'Tenants', path: '/tenants' }] : []),
     { title: 'Pessoas', path: '/pessoas' },
     { title: 'Produtos', path: '/produtos' },
     { title: 'Comercial', path: '/comercial' },

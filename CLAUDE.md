@@ -76,15 +76,19 @@ Plataforma SaaS multi-tenant de gerenciamento para auto peças, desenvolvida em 
 
 ### Fluxo de Criação de Tenant
 
-1. Landlord cadastra cliente no admin
-2. Sistema gera automaticamente:
-   - slug do name (editável)
-   - db_name e db_user do slug (troca hífen por underscore)
-   - db_password aleatório
-   - expiration_date = hoje + 30 dias
-3. Cria banco `sc360_{db_name}` no PostgreSQL
-4. Roda todas as migrations no banco novo
-5. Cria primeiro usuário admin do tenant
+1. Landlord cadastra cliente no admin (nome + validade)
+2. `TenantObserver::creating` gera automaticamente:
+   - `slug` a partir do `name` (Str::slug)
+   - `db_name` e `db_user` do slug (troca hífen por underscore)
+   - `db_password` aleatório (Str::random(24))
+   - `expiration_date` = hoje + 30 dias (se não informada)
+3. `TenantObserver::created` chama `TenantDatabaseService::provision()`:
+   - Cria banco `sc360_{db_name}` no PostgreSQL (via conexão main como superuser)
+   - Cria user `{db_user}` com senha e concede privilégios
+   - Transfere ownership do schema public para o tenant user
+   - Roda migrations em `database/migrations/tenant/` no novo banco
+   - Executa `AdminSeeder` no novo banco (person Admin + user admin@admin.com)
+   - Em caso de erro: rollback completo (remove tenant do main, dropa banco e user)
 
 ### Validade
 
@@ -326,12 +330,27 @@ Garante retorno 401 JSON para requisições não autenticadas. Sem isso, o Larav
 | `2025_02_24_000003` | users (com person_id FK) |
 | `2026_02_24_213424` | personal_access_tokens |
 
+### Observers (`app/Observers/`)
+
+| Observer | Gatilho | O que faz |
+|----------|---------|-----------|
+| `TenantObserver` | `creating` | Gera `slug`, `db_name`, `db_user`, `db_password`, `expiration_date` automaticamente |
+| `TenantObserver` | `created` | Chama `TenantDatabaseService::provision()` — provisiona banco do novo tenant |
+
+Registrado em `AppServiceProvider::boot()` via `Tenant::observe(TenantObserver::class)`.
+
+### Services (`app/Services/`)
+
+| Service | O que faz |
+|---------|-----------|
+| `TenantDatabaseService` | `provision(Tenant)`: cria banco PostgreSQL, user, grants, roda migrations tenant, roda AdminSeeder. Rollback completo em caso de erro. |
+
 ### Seeders (`database/seeders/`)
 
 | Seeder | O que faz |
 |--------|-----------|
 | `DatabaseSeeder` | Chama MainSeeder + AdminSeeder |
-| `MainSeeder` | Cria tenant configurável via `env('TENANT_SEED_SLUG', 'demo')` + `env('TENANT_SEED_NAME', 'Demo Tenant')` em sc360_main; cria módulo 'tenants' em sc360_main (via `Module::on('main')`) |
+| `MainSeeder` | Cria módulo 'tenants' (id=1) e módulo 'modules' (id=2) em sc360_main via `Module::on('main')->firstOrCreate`. **Não cria tenant** — provisionamento é feito pelo `TenantObserver` ao salvar. |
 | `AdminSeeder` | Cria person 'Admin' + user admin@admin.com na conexão default atual (main ou tenant) |
 
 **Comandos para rodar:**
@@ -402,7 +421,7 @@ src/
 │   ├── auth-routing.tsx
 │   ├── auth-routes.tsx
 │   └── require-auth.tsx
-├── components/           ← componentes reutilizáveis
+├── components/           ← componentes reutilizáveis (generic-grid.tsx, generic-modal.tsx)
 ├── config/               ← configurações do app
 ├── css/                  ← estilos globais
 ├── errors/               ← páginas de erro (404, etc.)
@@ -424,7 +443,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 |------|-----------|-----------|
 | `/` | `Navigate to="/dashboard"` | Redireciona para dashboard |
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
-| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ |
+| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ — **só acessível no tenant `admin`**; outros são redirecionados para `/dashboard` |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas (placeholder) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -440,11 +459,13 @@ O menu horizontal do Demo3 tem um item fixo "Dashboard" como primeiro item (hard
 
 **Dropdown Dashboard:**
 - Geral → `/dashboard`
-- Tenants → `/tenants`
+- Tenants → `/tenants` — **visível apenas quando `getTenantSlug() === 'admin'`**
 - Pessoas → `/pessoas`
 - Produtos → `/produtos`
 - Comercial → `/comercial`
 - Financeiro → `/financeiro`
+
+**Sidebar:** item "Tenants" também visível apenas quando `getTenantSlug() === 'admin'`.
 
 ### API Client (`frontend/src/lib/api.ts`)
 
@@ -485,9 +506,9 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 | **Fase 2** | Montar rotas (routes/api.php com prefixo `v1/{tenant}/{module}`, sem prefixo /api) ✅ |
 | **Fase 3** | Login + tela — backend ✅ (AuthController + Sanctum, multi-tenant + admin) / frontend ✅ (laravel-adapter.ts + laravel-provider.tsx + getTenantSlug() implementados) |
 | **Fase 4** | Dashboard demonstração — placeholder criado (`/dashboard`, página "Em desenvolvimento") ✅ |
-| **Fase 5** | Tela padrão index (grid) — ✅ implementada para tenants (`/tenants`) |
+| **Fase 5** | Tela padrão index (grid) — ✅ `GenericGrid` implementado (reutilizável para todos os módulos) |
 | **Fase 5.1** | Tela show/create/edit/delete/restore (página inteira) — não utilizada; projeto usa modal |
-| **Fase 5.2** | Tela show/create/edit/delete/restore (modal) — ✅ create/edit/delete implementados para tenants |
+| **Fase 5.2** | Tela show/create/edit/delete/restore (modal) — ✅ `GenericModal` implementado com todos os 5 modos (create/edit/show/delete/restore) |
 | **Fase 6** | Tela people |
 | **Fase 7** | Criar migration, model, request, controller das tabelas restantes (type_documents, type_contacts, type_addresses, notes, files, documents, contacts, addresses) |
 
@@ -495,12 +516,19 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 
 ## Fase 5 — Tela Index (Grid)
 
-- Colunas: btn order (drag & drop), checkbox, id, campos do módulo, active (badge success/danger), ações (show/create/edit/delete/restore)
-- Paginação — exibida somente quando necessário
+**Componente genérico:** `frontend/src/components/generic-grid.tsx` (`GenericGrid`)
+
+- Recebe `moduleId` + `columns` (config declarativa) + `modalComponent` — tudo reutilizável
+- Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, name_url)
+- Colunas configuráveis: `key`, `label`, `sortable`, `type` (text/date/datetime/boolean/badge/currency), `width`, `alignHead`, `alignBody`
+- Colunas padrão: drag handle, checkbox, id, active (badge) — toggle via props `showDrag`, `showCheckbox`, `showId`, `showActive`
+- Ações por linha: show, edit, delete, restore — toggle via props `showAction*`; edit/delete ocultos em soft-deleted; restore visível apenas em soft-deleted
+- Botões topo: Novo, Pesquisar, Export — toggle via `showBtn*`
+- Paginação — exibida somente quando necessário; toggle via `showPagination`
 - Order by — clique no cabeçalho da coluna; **ordenação padrão: `order DESC`**
-- Ações em massa — ativar/desativar via checkboxes
-- Btn novo — sempre abre modal; seta `mode='create'` e limpa `selectedTenant`
-- Btn pesquisar — abre modal com campos do módulo, ignora campos vazios na URL
+- Ações em massa — ativar/desativar via checkboxes; toggle via `showBulkActions`
+- Btn novo — sempre abre modal com `mode='create'`
+- Btn pesquisar — a implementar
 
 **Drag & drop (implementado com `@dnd-kit`):**
 - Componente `DragHandle` usa `useSortable` do `@dnd-kit/sortable`; tooltip "Arrastar para reordenar" some durante o drag (`isDragging ? false : undefined`)
@@ -521,17 +549,19 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 
 ## Fase 5.2 — Modal CRUD (Padrão)
 
-**Tamanhos:** `p`, `m`, `g` (definido por variável na index)
+**Componente genérico:** `frontend/src/components/generic-modal.tsx` (`GenericModal`)
+
+**Tamanhos:** `p` (max-w-sm), `m` (max-w-lg, default), `g` (max-w-4xl)
 
 **Estrutura:**
-- **Header esquerda:** label da ação (Criando / Alterando / Deletando / Visualizando / Restaurando registro)
+- **Header esquerda:** label da ação (Criando / Alterando / Visualizando / Deletando / Restaurando registro)
 - **Header direita:** btn X (fecha o modal)
-- **Content linha 1:** campos do módulo
-- **Content linha 2:** `Criado em: dd/mm/yyyy | Alterado em: dd/mm/yyyy` — aparece sempre que `tenant` está carregado (edit/delete); `Deletado em: dd/mm/yyyy` em `text-danger` — aparece apenas em registros soft-deleted (restore) — a implementar
-- **Footer esquerda:** switch ativo/inativo + badge clicável (só nos modos create/edit/restore — oculto no delete)
+- **Content:** `children` (campos do módulo) ou `tabs` para modal com abas
+- **Timestamps:** `Criado em: dd/mm/yyyy | Alterado em: dd/mm/yyyy` — visível quando `record` está presente; `Deletado em: dd/mm/yyyy` em `text-destructive` — visível apenas quando `deleted_at` está preenchido
+- **Footer esquerda:** switch ativo/inativo + badge clicável (oculto em show e delete)
 - **Footer direita:** botões conforme ação
 
-**Badge do switch (implementado):**
+**Badge do switch:**
 - `active = true` → `<Badge variant="primary" appearance="light">Ativo</Badge>` (clicável → seta false)
 - `active = false` → `<Badge variant="destructive" appearance="light">Inativo</Badge>` (clicável → seta true)
 
@@ -541,31 +571,42 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 |------|--------|--------------|--------|
 | Create | editáveis | ✅ visível | Cancelar + Salvar |
 | Edit | editáveis | ✅ visível | Cancelar + Salvar |
-| Show | readonly | — oculto | Cancelar |
-| Delete | readonly (disabled) | — oculto | Cancelar + Deletar (destructive) |
-| Restore | readonly → edit | ✅ visível | Cancelar + Salvar |
+| Show | `pointer-events-none opacity-60` | — oculto | Fechar |
+| Delete | `pointer-events-none opacity-60` | — oculto | Cancelar + Deletar (destructive) |
+| Restore | `pointer-events-none opacity-60` | ✅ visível | Cancelar + Salvar (PATCH /restore) |
 
-**Modos implementados:** `create`, `edit`, `delete` ✅ — `show`, `restore` a implementar
+**Modos implementados:** `create`, `edit`, `show`, `delete`, `restore` ✅ — todos os 5 modos
 
-**Prop `mode` no modal:** `'create' | 'edit' | 'delete'` — controla título, campos, switch e botões
+**Props da interface `GenericModalProps`:**
+- `moduleId` — busca `name_url` + `after_*` via `GET /v1/{tenant}/modules/{id}`
+- `record` — registro atual (qualquer módulo)
+- `onGetData()` — coleta dados do formulário externo; retornar `null` aborta o save
+- `onErrors(errors)` — repassa erros 422 ao pai para exibir nos campos
+- `tabs` — array `{label, content}` para modal com abas
+- `children` — campos do módulo (usado quando sem abas)
+
+**Comportamento `after_*` (lido da tabela `modules`):**
+- `index` → fecha o modal e recarrega o grid
+- `show` → mantém modal aberto, muda para modo `show` com o registro salvo
+- `create` → mantém modal aberto, limpa campos, modo `create`
+- `edit` → mantém modal aberto, carrega registro salvo, modo `edit`
 
 **Validação de slug em tempo real (tenants):**
 - `useEffect` com debounce de 500ms observa `slug`
 - Chama `GET /v1/admin/tenants/check-slug?slug=&exclude_id=`
 - Status: `idle | checking | available | unavailable`
-- Botão Salvar desabilitado enquanto `checking` ou `unavailable`
-- Ignorado no modo `delete`
+- `onGetData` retorna `null` enquanto `checking` ou `unavailable`, abortando o save
+- Ativo nos modos `create`, `edit`, `restore`
 
 **Regras extras:**
 - Ao deletar, `active` é setado para `false` automaticamente (backend: `destroy` do `ModuleController`)
-- Ao restaurar, modal muda para modo edit
 - Existe um único componente modal reutilizável para todos os módulos — não criar outros modais de CRUD salvo casos extremamente necessários
 
 **Submódulos no modal:**
-- Módulos com submódulos (documentos, contatos, endereços, notas, arquivos) usam modal `G` com tabs
+- Módulos com submódulos (documentos, contatos, endereços, notas, arquivos) usam modal `g` com prop `tabs`
 - Primeira tab: dados principais
 - Demais tabs: submódulos
-- Módulos sem submódulos usam o modal padrão sem tabs
+- Módulos sem submódulos usam `children` (sem tabs)
 
 ---
 

@@ -3,29 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\Module;
-use App\Models\Tenant;
-use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 
 class MainSeeder extends Seeder
 {
     public function run(): void
     {
-        $slug = env('TENANT_SEED_SLUG', 'demo');
-
-        Tenant::firstOrCreate(
-            ['slug' => $slug],
-            [
-                'name'            => env('TENANT_SEED_NAME', 'Demo Tenant'),
-                'db_name'         => str_replace('-', '_', $slug),
-                'db_user'         => 'postgres',
-                'db_password'     => env('DB_PASSWORD', ''),
-                'expiration_date' => Carbon::today()->addDays(30),
-                'order'           => 1,
-                'active'          => true,
-            ]
-        );
-
         Module::on('main')->firstOrCreate(
             ['name_url' => 'tenants'],
             [
@@ -35,6 +18,19 @@ class MainSeeder extends Seeder
                 'model'      => 'Tenant',
                 'request'    => 'TenantRequest',
                 'order'      => 1,
+                'active'     => true,
+            ]
+        );
+
+        Module::on('main')->firstOrCreate(
+            ['name_url' => 'modules'],
+            [
+                'name'       => 'Modules',
+                'type'       => 'modulo',
+                'name_table' => 'modules',
+                'model'      => 'Module',
+                'request'    => 'ModuleRequest',
+                'order'      => 2,
                 'active'     => true,
             ]
         );

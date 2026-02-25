@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Observers;
+
+use App\Models\Tenant;
+use App\Services\TenantDatabaseService;
+use Illuminate\Support\Str;
+
+class TenantObserver
+{
+    /**
+     * Antes de salvar: gerar campos automáticos ausentes.
+     */
+    public function creating(Tenant $tenant): void
+    {
+        if (empty($tenant->slug)) {
+            $tenant->slug = Str::slug($tenant->name);
+        }
+
+        // Sempre deriva do slug para garantir consistência
+        $tenant->db_name = str_replace('-', '_', $tenant->slug);
+        $tenant->db_user = $tenant->db_name;
+
+        if (empty($tenant->db_password)) {
+            $tenant->db_password = Str::random(24);
+        }
+
+        if (empty($tenant->expiration_date)) {
+            $tenant->expiration_date = now()->addDays(30);
+        }
+    }
+
+    /**
+     * Após salvar: provisionar banco de dados do tenant de forma síncrona.
+     */
+    public function created(Tenant $tenant): void
+    {
+        app(TenantDatabaseService::class)->provision($tenant);
+    }
+}
