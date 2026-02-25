@@ -30,9 +30,9 @@ class TenantRequest extends FormRequest
         return [
             'name'            => ['required', 'string', 'max:255'],
             'slug'            => ['required', 'string', 'max:255', 'unique:main.tenants,slug' . ($tenantId ? ',' . $tenantId : '')],
-            'db_name'         => ['required', 'string', 'max:255'],
-            'db_user'         => ['required', 'string', 'max:255'],
-            'db_password'     => ['required', 'string'],
+            'db_name'         => ['sometimes', 'required', 'string', 'max:255'],
+            'db_user'         => ['sometimes', 'required', 'string', 'max:255'],
+            'db_password'     => ['sometimes', 'required', 'string'],
             'expiration_date' => ['required', 'date'],
             'order'           => ['integer', 'min:1'],
             'active'          => ['boolean'],

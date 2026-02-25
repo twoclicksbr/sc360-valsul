@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
-import { TenantModal } from './tenant-modal';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { TenantForEdit, TenantModal } from './tenant-modal';
 import {
   ColumnDef,
   getCoreRowModel,
@@ -27,6 +27,8 @@ interface Tenant {
   db_name: string;
   expiration_date: string | null;
   active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface TenantsResponse {
@@ -51,146 +53,148 @@ function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
   return <ChevronsUpDown className="size-3.5 opacity-40" />;
 }
 
-const columns: ColumnDef<Tenant>[] = [
-  {
-    id: 'drag',
-    size: 40,
-    header: () => null,
-    cell: () => (
-      <span className="flex items-center justify-center cursor-grab text-muted-foreground">
-        <GripVertical className="size-4" />
-      </span>
-    ),
-    meta: { skeleton: <span className="block w-4 h-4" /> },
-  },
-  {
-    id: 'select',
-    size: 40,
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected()
-            ? true
-            : table.getIsSomePageRowsSelected()
-              ? 'indeterminate'
-              : false
-        }
-        onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-        aria-label="Selecionar todos"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(v) => row.toggleSelected(!!v)}
-        aria-label="Selecionar linha"
-      />
-    ),
-    meta: { skeleton: <Skeleton className="h-4 w-4" /> },
-  },
-  {
-    accessorKey: 'id',
-    size: 70,
-    header: ({ column }) => (
-      <button
-        className="flex items-center gap-1 hover:text-foreground"
-        onClick={() => column.toggleSorting()}
-      >
-        ID <SortIcon sorted={column.getIsSorted()} />
-      </button>
-    ),
-    meta: { skeleton: <Skeleton className="h-4 w-8" /> },
-  },
-  {
-    accessorKey: 'name',
-    header: ({ column }) => (
-      <button
-        className="flex items-center gap-1 hover:text-foreground"
-        onClick={() => column.toggleSorting()}
-      >
-        Nome <SortIcon sorted={column.getIsSorted()} />
-      </button>
-    ),
-    meta: { skeleton: <Skeleton className="h-4 w-36" /> },
-  },
-  {
-    accessorKey: 'slug',
-    size: 140,
-    header: ({ column }) => (
-      <button
-        className="flex items-center gap-1 hover:text-foreground"
-        onClick={() => column.toggleSorting()}
-      >
-        Slug <SortIcon sorted={column.getIsSorted()} />
-      </button>
-    ),
-    meta: { skeleton: <Skeleton className="h-4 w-20" /> },
-  },
-  {
-    accessorKey: 'db_name',
-    size: 140,
-    header: 'Banco',
-    meta: { skeleton: <Skeleton className="h-4 w-20" /> },
-  },
-  {
-    accessorKey: 'expiration_date',
-    size: 120,
-    header: ({ column }) => (
-      <button
-        className="flex items-center gap-1 hover:text-foreground"
-        onClick={() => column.toggleSorting()}
-      >
-        Validade <SortIcon sorted={column.getIsSorted()} />
-      </button>
-    ),
-    cell: ({ getValue }) => formatDate(getValue<string | null>()),
-    meta: { skeleton: <Skeleton className="h-4 w-24" /> },
-  },
-  {
-    accessorKey: 'active',
-    size: 90,
-    header: 'Ativo',
-    cell: ({ getValue }) =>
-      getValue<boolean>() ? (
-        <Badge variant="success" appearance="light" size="sm">
-          Ativo
-        </Badge>
-      ) : (
-        <Badge variant="destructive" appearance="light" size="sm">
-          Inativo
-        </Badge>
+function buildColumns(onEdit: (tenant: TenantForEdit) => void): ColumnDef<Tenant>[] {
+  return [
+    {
+      id: 'drag',
+      size: 40,
+      header: () => null,
+      cell: () => (
+        <span className="flex items-center justify-center cursor-grab text-muted-foreground">
+          <GripVertical className="size-4" />
+        </span>
       ),
-    meta: { skeleton: <Skeleton className="h-5 w-14" /> },
-  },
-  {
-    id: 'actions',
-    size: 80,
-    header: () => <span className="text-right block">Ações</span>,
-    cell: () => (
-      <TooltipProvider>
-        <div className="flex items-center justify-end gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="sm" variant="ghost" mode="icon" onClick={() => {}}>
-                <Pencil className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">Editar</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="sm" variant="ghost" mode="icon" onClick={() => {}}>
-                <Trash2 className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">Deletar</TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
-    ),
-    meta: { skeleton: <Skeleton className="h-8 w-16" /> },
-  },
-];
+      meta: { skeleton: <span className="block w-4 h-4" /> },
+    },
+    {
+      id: 'select',
+      size: 40,
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected()
+              ? true
+              : table.getIsSomePageRowsSelected()
+                ? 'indeterminate'
+                : false
+          }
+          onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+          aria-label="Selecionar todos"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(v) => row.toggleSelected(!!v)}
+          aria-label="Selecionar linha"
+        />
+      ),
+      meta: { skeleton: <Skeleton className="h-4 w-4" /> },
+    },
+    {
+      accessorKey: 'id',
+      size: 70,
+      header: ({ column }) => (
+        <button
+          className="flex items-center gap-1 hover:text-foreground"
+          onClick={() => column.toggleSorting()}
+        >
+          ID <SortIcon sorted={column.getIsSorted()} />
+        </button>
+      ),
+      meta: { skeleton: <Skeleton className="h-4 w-8" /> },
+    },
+    {
+      accessorKey: 'name',
+      header: ({ column }) => (
+        <button
+          className="flex items-center gap-1 hover:text-foreground"
+          onClick={() => column.toggleSorting()}
+        >
+          Nome <SortIcon sorted={column.getIsSorted()} />
+        </button>
+      ),
+      meta: { skeleton: <Skeleton className="h-4 w-36" /> },
+    },
+    {
+      accessorKey: 'slug',
+      size: 140,
+      header: ({ column }) => (
+        <button
+          className="flex items-center gap-1 hover:text-foreground"
+          onClick={() => column.toggleSorting()}
+        >
+          Slug <SortIcon sorted={column.getIsSorted()} />
+        </button>
+      ),
+      meta: { skeleton: <Skeleton className="h-4 w-20" /> },
+    },
+    {
+      accessorKey: 'db_name',
+      size: 140,
+      header: 'Banco',
+      meta: { skeleton: <Skeleton className="h-4 w-20" /> },
+    },
+    {
+      accessorKey: 'expiration_date',
+      size: 120,
+      header: ({ column }) => (
+        <button
+          className="flex items-center gap-1 hover:text-foreground"
+          onClick={() => column.toggleSorting()}
+        >
+          Validade <SortIcon sorted={column.getIsSorted()} />
+        </button>
+      ),
+      cell: ({ getValue }) => formatDate(getValue<string | null>()),
+      meta: { skeleton: <Skeleton className="h-4 w-24" /> },
+    },
+    {
+      accessorKey: 'active',
+      size: 90,
+      header: 'Ativo',
+      cell: ({ getValue }) =>
+        getValue<boolean>() ? (
+          <Badge variant="success" appearance="light" size="sm">
+            Ativo
+          </Badge>
+        ) : (
+          <Badge variant="destructive" appearance="light" size="sm">
+            Inativo
+          </Badge>
+        ),
+      meta: { skeleton: <Skeleton className="h-5 w-14" /> },
+    },
+    {
+      id: 'actions',
+      size: 80,
+      header: () => <span className="text-right block">Ações</span>,
+      cell: ({ row }) => (
+        <TooltipProvider>
+          <div className="flex items-center justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" mode="icon" onClick={() => onEdit(row.original)}>
+                  <Pencil className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Editar</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" mode="icon" onClick={() => {}}>
+                  <Trash2 className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Deletar</TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+      ),
+      meta: { skeleton: <Skeleton className="h-8 w-16" /> },
+    },
+  ];
+}
 
 export function TenantsPage() {
   const [data, setData] = useState<Tenant[]>([]);
@@ -200,6 +204,7 @@ export function TenantsPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<TenantForEdit | null>(null);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -222,6 +227,18 @@ export function TenantsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  function handleEdit(tenant: TenantForEdit) {
+    setSelectedTenant(tenant);
+    setModalOpen(true);
+  }
+
+  function handleModalOpenChange(open: boolean) {
+    setModalOpen(open);
+    if (!open) setSelectedTenant(null);
+  }
+
+  const columns = useMemo(() => buildColumns(handleEdit), []);
 
   const table = useReactTable<Tenant>({
     data,
@@ -266,8 +283,9 @@ export function TenantsPage() {
 
       <TenantModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={handleModalOpenChange}
         onSuccess={fetchData}
+        tenant={selectedTenant}
       />
     </Fragment>
   );

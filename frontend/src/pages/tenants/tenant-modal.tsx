@@ -14,10 +14,21 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { apiFetch } from '@/lib/api';
 
+export interface TenantForEdit {
+  id: number;
+  name: string;
+  slug: string;
+  expiration_date: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 interface TenantModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  tenant?: TenantForEdit | null;
 }
 
 type FieldErrors = Record<string, string[]>;
@@ -37,7 +48,14 @@ function defaultExpiration(): string {
   return d.toISOString().split('T')[0];
 }
 
-export function TenantModal({ open, onOpenChange, onSuccess }: TenantModalProps) {
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('pt-BR');
+}
+
+export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantModalProps) {
+  const isEdit = !!tenant;
+
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugManual, setSlugManual] = useState(false);
@@ -48,14 +66,22 @@ export function TenantModal({ open, onOpenChange, onSuccess }: TenantModalProps)
 
   useEffect(() => {
     if (open) {
-      setName('');
-      setSlug('');
-      setSlugManual(false);
-      setExpirationDate(defaultExpiration());
-      setActive(true);
+      if (tenant) {
+        setName(tenant.name);
+        setSlug(tenant.slug);
+        setSlugManual(true);
+        setExpirationDate(tenant.expiration_date?.split('T')[0] ?? defaultExpiration());
+        setActive(tenant.active);
+      } else {
+        setName('');
+        setSlug('');
+        setSlugManual(false);
+        setExpirationDate(defaultExpiration());
+        setActive(true);
+      }
       setErrors({});
     }
-  }, [open]);
+  }, [open, tenant]);
 
   function handleNameChange(value: string) {
     setName(value);
@@ -73,8 +99,10 @@ export function TenantModal({ open, onOpenChange, onSuccess }: TenantModalProps)
     setSaving(true);
     setErrors({});
     try {
-      const res = await apiFetch('/v1/admin/tenants', {
-        method: 'POST',
+      const path = isEdit ? `/v1/admin/tenants/${tenant.id}` : '/v1/admin/tenants';
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await apiFetch(path, {
+        method,
         body: JSON.stringify({ name, slug, expiration_date: expirationDate, active }),
       });
       if (res.ok) {
@@ -97,7 +125,7 @@ export function TenantModal({ open, onOpenChange, onSuccess }: TenantModalProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Criando registro</DialogTitle>
+          <DialogTitle>{isEdit ? 'Alterando registro' : 'Criando registro'}</DialogTitle>
         </DialogHeader>
 
         <DialogBody className="space-y-4">
@@ -145,6 +173,12 @@ export function TenantModal({ open, onOpenChange, onSuccess }: TenantModalProps)
               <p className="text-sm text-destructive">{errors.expiration_date[0]}</p>
             )}
           </div>
+
+          {isEdit && (
+            <p className="text-xs text-muted-foreground pt-1">
+              Criado em: {formatDate(tenant.created_at)} | Alterado em: {formatDate(tenant.updated_at)}
+            </p>
+          )}
         </DialogBody>
 
         <DialogFooter className="flex-row justify-between">
