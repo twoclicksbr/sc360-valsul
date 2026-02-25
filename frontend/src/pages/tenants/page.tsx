@@ -6,7 +6,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { ChevronUp, ChevronDown, ChevronsUpDown, Download } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Pencil, Trash2 } from 'lucide-react';
 import { Container } from '@/components/common/container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { DataGrid, DataGridContainer } from '@/components/ui/data-grid';
 import { DataGridPagination } from '@/components/ui/data-grid-pagination';
 import { DataGridTable } from '@/components/ui/data-grid-table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { apiGet } from '@/lib/api';
 
 interface Tenant {
@@ -121,6 +122,34 @@ const columns: ColumnDef<Tenant>[] = [
         </Badge>
       ),
     meta: { skeleton: <Skeleton className="h-5 w-14" /> },
+  },
+  {
+    id: 'actions',
+    size: 80,
+    header: 'Ações',
+    cell: () => (
+      <TooltipProvider>
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="ghost" mode="icon" onClick={() => {}}>
+                <Pencil className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Editar</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="ghost" mode="icon" onClick={() => {}}>
+                <Trash2 className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Deletar</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+    ),
+    meta: { skeleton: <Skeleton className="h-8 w-16" /> },
   },
 ];
 
