@@ -503,8 +503,11 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 - Btn pesquisar — abre modal com campos do módulo, ignora campos vazios na URL
 
 **Drag & drop (implementado com `@dnd-kit`):**
-- Componente `DragHandle` usa `useSortable` do `@dnd-kit/sortable`
-- `DataGridTableDndRows` envolve o grid com `DndContext`
+- Componente `DragHandle` usa `useSortable` do `@dnd-kit/sortable`; tooltip "Arrastar para reordenar" some durante o drag (`isDragging ? false : undefined`)
+- `DataGridTableDndRows` envolve o grid com `DndContext`; aceita `renderDragOverlay` (callback) e `onDragStart` (opcional)
+- **DragOverlay** com `dropAnimation={null}`: ao arrastar, a linha original fica invisível (`opacity: 0`, mantendo espaço), e uma cópia visual segue o cursor — sem animação de retorno ao soltar
+- Sem `transition` CSS nas linhas — evita que as linhas animem de volta antes do React re-renderizar com a nova ordem
+- `blur()` chamado em `internalHandleDragEnd` e `internalHandleDragCancel` — elimina qualquer foco/highlight residual
 - `handleDragEnd`: recalcula `order` de todos os itens da página (`baseOrder = total - pageIndex * pageSize`, decrementa por posição)
 - **Update otimista**: `setData(newDataWithOrders)` antes das chamadas à API — sem reload visual
 - Só os itens cujo `order` mudou de fato são enviados via PUT (otimização)

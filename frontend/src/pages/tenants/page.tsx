@@ -57,15 +57,22 @@ function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
 }
 
 function DragHandle({ rowId }: { rowId: string }) {
-  const { attributes, listeners } = useSortable({ id: rowId });
+  const { attributes, listeners, isDragging } = useSortable({ id: rowId });
   return (
-    <span
-      className="flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground"
-      {...attributes}
-      {...listeners}
-    >
-      <GripVertical className="size-4" />
-    </span>
+    <TooltipProvider>
+      <Tooltip open={isDragging ? false : undefined}>
+        <TooltipTrigger asChild>
+          <span
+            className="flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 active:outline-none active:ring-0"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="size-4" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right">Arrastar para reordenar</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -306,6 +313,22 @@ export function TenantsPage() {
     [data, total, pagination, fetchData],
   );
 
+  const renderDragOverlay = useCallback(
+    (activeId: UniqueIdentifier | null) => {
+      if (activeId === null) return null;
+      const tenant = data[parseInt(activeId as string)];
+      if (!tenant) return null;
+      return (
+        <div className="flex items-center gap-2 bg-background border rounded-md shadow-xl px-3 py-2 text-sm cursor-grabbing">
+          <GripVertical className="size-4 text-muted-foreground shrink-0" />
+          <span className="font-medium">{tenant.name}</span>
+          <span className="text-muted-foreground text-xs">{tenant.slug}</span>
+        </div>
+      );
+    },
+    [data],
+  );
+
   const columns = useMemo(() => buildColumns(handleEdit, handleDelete), [handleEdit, handleDelete]);
 
   const table = useReactTable<Tenant>({
@@ -348,7 +371,7 @@ export function TenantsPage() {
         </div>
         <DataGridContainer>
           <DataGrid table={table} recordCount={total} isLoading={isLoading} loadingMode="skeleton">
-            <DataGridTableDndRows handleDragEnd={handleDragEnd} dataIds={dataIds} />
+            <DataGridTableDndRows handleDragEnd={handleDragEnd} dataIds={dataIds} renderDragOverlay={renderDragOverlay} />
             <div className="border-t px-4 py-3">
               <DataGridPagination />
             </div>

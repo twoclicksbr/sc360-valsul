@@ -29,7 +29,7 @@ function DataGridPagination(props: DataGridPaginationProps) {
     sizesSkeleton: <Skeleton className="h-8 w-44" />,
     moreLimit: 5,
     more: false,
-    info: '{from} - {to} of {count}',
+    info: '{from} - {to} de {count}',
     infoSkeleton: <Skeleton className="h-8 w-60" />,
   };
 
@@ -49,7 +49,7 @@ function DataGridPagination(props: DataGridPaginationProps) {
         .replace('{from}', from.toString())
         .replace('{to}', to.toString())
         .replace('{count}', recordCount.toString())
-    : `${from} - ${to} of ${recordCount}`;
+    : `${from} - ${to} de ${recordCount}`;
 
   // Pagination limit logic
   const paginationMoreLimit = mergedProps?.moreLimit || 5;
@@ -133,7 +133,7 @@ function DataGridPagination(props: DataGridPaginationProps) {
           mergedProps?.sizesSkeleton
         ) : (
           <>
-            <div className="text-sm text-muted-foreground">Rows per page</div>
+            <div className="text-sm text-muted-foreground">Linhas por página</div>
             <Select
               value={`${pageSize}`}
               indicatorPosition="right"
