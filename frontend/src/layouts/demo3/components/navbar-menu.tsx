@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { MENU_SIDEBAR, MENU_SIDEBAR_CUSTOM } from '@/config/menu.config';
@@ -14,9 +15,27 @@ import {
   MenubarSubTrigger,
   MenubarTrigger,
 } from '@/components/ui/menubar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function NavbarMenu() {
   const { pathname } = useLocation();
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDashboardEnter = useCallback(() => {
+    if (closeTimeout.current) clearTimeout(closeTimeout.current);
+    setDashboardOpen(true);
+  }, []);
+
+  const handleDashboardLeave = useCallback(() => {
+    closeTimeout.current = setTimeout(() => setDashboardOpen(false), 150);
+  }, []);
+
   let navbarMenu;
 
   if (pathname.includes('/public-profile/')) {
@@ -120,39 +139,46 @@ export function NavbarMenu() {
     <div className="grid">
       <div className="kt-scrollable-x-auto flex items-stretch">
         <Menubar className="space-x-0 flex items-stretch border-none bg-transparent gap-5 p-0 h-auto">
-          <MenubarMenu>
-            <MenubarTrigger
+          <DropdownMenu open={dashboardOpen} onOpenChange={setDashboardOpen}>
+            <DropdownMenuTrigger
               className={cn(
                 'flex items-center gap-1 px-0 py-3.5 text-sm text-secondary-foreground text-nowrap',
                 'rounded-none border-b-2 border-transparent bg-transparent!',
                 'hover:text-mono hover:bg-transparent',
-                'focus:text-mono focus:bg-transparent',
+                'focus:text-mono focus:bg-transparent focus-visible:outline-none',
                 'data-[state=open]:bg-transparent data-[state=open]:text-mono',
                 'data-[here=true]:text-mono data-[here=true]:border-mono',
               )}
               data-here={isActive('/dashboard') || undefined}
+              onMouseEnter={handleDashboardEnter}
+              onMouseLeave={handleDashboardLeave}
             >
               Dashboard
               <ChevronDown className="ms-auto size-3.5!" />
-            </MenubarTrigger>
-            <MenubarContent className="min-w-[175px]" sideOffset={0}>
-              <MenubarItem asChild>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="min-w-[175px]"
+              sideOffset={0}
+              onMouseEnter={handleDashboardEnter}
+              onMouseLeave={handleDashboardLeave}
+            >
+              <DropdownMenuItem asChild>
                 <Link to="/dashboard">Geral</Link>
-              </MenubarItem>
-              <MenubarItem asChild>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link to="/pessoas">Pessoas</Link>
-              </MenubarItem>
-              <MenubarItem asChild>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link to="/produtos">Produtos</Link>
-              </MenubarItem>
-              <MenubarItem asChild>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link to="/comercial">Comercial</Link>
-              </MenubarItem>
-              <MenubarItem asChild>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link to="/financeiro">Financeiro</Link>
-              </MenubarItem>
-            </MenubarContent>
-          </MenubarMenu>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {buildMenu(navbarMenu.children as MenuConfig)}
         </Menubar>
       </div>
