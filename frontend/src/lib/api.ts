@@ -44,3 +44,13 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   }
   return res.json() as Promise<T>;
 }
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  const res = await apiFetch(path, { method: 'DELETE' });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    const err = Object.assign(new Error(`API error: ${res.status}`), { status: res.status, data: json });
+    throw err;
+  }
+  return res.json() as Promise<T>;
+}

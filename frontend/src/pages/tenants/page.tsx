@@ -69,7 +69,10 @@ function DragHandle({ rowId }: { rowId: string }) {
   );
 }
 
-function buildColumns(onEdit: (tenant: TenantForEdit) => void): ColumnDef<Tenant>[] {
+function buildColumns(
+  onEdit: (tenant: TenantForEdit) => void,
+  onDelete: (tenant: TenantForEdit) => void,
+): ColumnDef<Tenant>[] {
   return [
     {
       id: 'drag',
@@ -194,7 +197,7 @@ function buildColumns(onEdit: (tenant: TenantForEdit) => void): ColumnDef<Tenant
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" variant="ghost" mode="icon" onClick={() => {}}>
+                <Button size="sm" variant="ghost" mode="icon" onClick={() => onDelete(row.original)}>
                   <Trash2 className="size-4" />
                 </Button>
               </TooltipTrigger>
@@ -216,6 +219,7 @@ export function TenantsPage() {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'delete'>('create');
   const [selectedTenant, setSelectedTenant] = useState<TenantForEdit | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -241,6 +245,13 @@ export function TenantsPage() {
   }, [fetchData]);
 
   const handleEdit = useCallback((tenant: TenantForEdit) => {
+    setModalMode('edit');
+    setSelectedTenant(tenant);
+    setModalOpen(true);
+  }, []);
+
+  const handleDelete = useCallback((tenant: TenantForEdit) => {
+    setModalMode('delete');
     setSelectedTenant(tenant);
     setModalOpen(true);
   }, []);
@@ -295,7 +306,7 @@ export function TenantsPage() {
     [data, total, pagination, fetchData],
   );
 
-  const columns = useMemo(() => buildColumns(handleEdit), [handleEdit]);
+  const columns = useMemo(() => buildColumns(handleEdit, handleDelete), [handleEdit, handleDelete]);
 
   const table = useReactTable<Tenant>({
     data,
@@ -332,7 +343,7 @@ export function TenantsPage() {
           <h1 className="text-xl font-semibold">Tenants</h1>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline"><Download className="size-4" />Export</Button>
-            <Button size="sm" onClick={() => setModalOpen(true)}>Novo</Button>
+            <Button size="sm" onClick={() => { setModalMode('create'); setSelectedTenant(null); setModalOpen(true); }}>Novo</Button>
           </div>
         </div>
         <DataGridContainer>
@@ -350,6 +361,7 @@ export function TenantsPage() {
         onOpenChange={handleModalOpenChange}
         onSuccess={fetchData}
         tenant={selectedTenant}
+        mode={modalMode}
       />
     </Fragment>
   );

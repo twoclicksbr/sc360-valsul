@@ -186,6 +186,20 @@ Resposta do login:
 { "token": "1|abc...", "user": { "id": 1, "email": "...", "active": true, "person": { "id": 1, "name": "..." } } }
 ```
 
+### Rotas CRUD Genéricas (ModuleController)
+
+Todas protegidas por `auth:sanctum`. `{module}` = `name_url` do registro na tabela `modules`.
+
+| Método | URL | Método Controller | Descrição |
+|--------|-----|-------------------|-----------|
+| GET | `api.{domínio}/v1/{tenant}/{module}` | `index` | Lista paginada com sort e per_page |
+| POST | `api.{domínio}/v1/{tenant}/{module}` | `store` | Cria registro (usa Request dinâmica) |
+| GET | `api.{domínio}/v1/{tenant}/{module}/check-slug` | `checkSlug` | Verifica disponibilidade de slug (`?slug=&exclude_id=`) |
+| GET | `api.{domínio}/v1/{tenant}/{module}/{id}` | `show` | Exibe registro (inclui soft-deleted via `withTrashed`) |
+| PUT/PATCH | `api.{domínio}/v1/{tenant}/{module}/{id}` | `update` | Atualiza registro |
+| DELETE | `api.{domínio}/v1/{tenant}/{module}/{id}` | `destroy` | Soft delete + seta `active=false` |
+| PATCH | `api.{domínio}/v1/{tenant}/{module}/{id}/restore` | `restore` | Restaura soft-deleted |
+
 ### CORS (`config/cors.php`)
 
 | Chave | Valor |
@@ -372,8 +386,8 @@ src/
 ├── hooks/                ← hooks customizados
 ├── i18n/                 ← internacionalização
 ├── layouts/              ← demo1..demo10 (em uso: demo3)
-├── lib/                  ← supabase.ts, tenant.ts e utilitários
-├── pages/                ← páginas por módulo (dashboard/, pessoas/, produtos/, compras/, vendas/, financeiro/, pagar/, receber/, configuracao/)
+├── lib/                  ← api.ts, supabase.ts, tenant.ts e utilitários
+├── pages/                ← páginas por módulo (dashboard/, tenants/, pessoas/, produtos/, compras/, vendas/, financeiro/, pagar/, receber/, configuracao/)
 ├── partials/             ← partes reutilizáveis de UI
 ├── providers/            ← providers React (tema, i18n, etc.)
 └── routing/              ← app-routing.tsx, app-routing-setup.tsx
@@ -387,6 +401,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 |------|-----------|-----------|
 | `/` | `Navigate to="/dashboard"` | Redireciona para dashboard |
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
+| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas (placeholder) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -402,10 +417,23 @@ O menu horizontal do Demo3 tem um item fixo "Dashboard" como primeiro item (hard
 
 **Dropdown Dashboard:**
 - Geral → `/dashboard`
+- Tenants → `/tenants`
 - Pessoas → `/pessoas`
 - Produtos → `/produtos`
 - Comercial → `/comercial`
 - Financeiro → `/financeiro`
+
+### API Client (`frontend/src/lib/api.ts`)
+
+Wrapper centralizado para chamadas à API Laravel. Injeta `Authorization: Bearer {token}` automaticamente.
+
+| Função | Método HTTP | Descrição |
+|--------|-------------|-----------|
+| `apiFetch(path, options)` | qualquer | Base — retorna `Response` bruta |
+| `apiGet<T>(path)` | GET | Retorna `T` parseado; lança erro se `!res.ok` |
+| `apiPost<T>(path, body)` | POST | Retorna `T`; lança erro com `status` + `data` |
+| `apiPut<T>(path, body)` | PUT | Retorna `T`; lança erro com `status` + `data` |
+| `apiDelete<T>(path)` | DELETE | Retorna `T`; lança erro com `status` + `data` |
 
 ### Tenant Detection (`frontend/src/lib/tenant.ts`)
 
@@ -434,9 +462,9 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 | **Fase 2** | Montar rotas (routes/api.php com prefixo `v1/{tenant}/{module}`, sem prefixo /api) ✅ |
 | **Fase 3** | Login + tela — backend ✅ (AuthController + Sanctum, multi-tenant + admin) / frontend ✅ (laravel-adapter.ts + laravel-provider.tsx + getTenantSlug() implementados) |
 | **Fase 4** | Dashboard demonstração — placeholder criado (`/dashboard`, página "Em desenvolvimento") ✅ |
-| **Fase 5** | Tela padrão index (grid) |
-| **Fase 5.1** | Tela show/create/edit/delete/restore (página inteira) |
-| **Fase 5.2** | Tela show/create/edit/delete/restore (modal) |
+| **Fase 5** | Tela padrão index (grid) — ✅ implementada para tenants (`/tenants`) |
+| **Fase 5.1** | Tela show/create/edit/delete/restore (página inteira) — não utilizada; projeto usa modal |
+| **Fase 5.2** | Tela show/create/edit/delete/restore (modal) — ✅ create/edit/delete implementados para tenants |
 | **Fase 6** | Tela people |
 | **Fase 7** | Criar migration, model, request, controller das tabelas restantes (type_documents, type_contacts, type_addresses, notes, files, documents, contacts, addresses) |
 

@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { apiFetch, apiGet } from '@/lib/api';
+import { apiFetch, apiDelete, apiGet } from '@/lib/api';
 
 export interface TenantForEdit {
   id: number;
@@ -30,6 +30,7 @@ interface TenantModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   tenant?: TenantForEdit | null;
+  mode?: 'create' | 'edit' | 'delete';
 }
 
 type FieldErrors = Record<string, string[]>;
@@ -55,8 +56,15 @@ function formatDate(value: string | null | undefined): string {
   return new Date(value).toLocaleDateString('pt-BR');
 }
 
-export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantModalProps) {
-  const isEdit = !!tenant;
+const TITLES = {
+  create: 'Criando registro',
+  edit: 'Alterando registro',
+  delete: 'Deletando registro',
+};
+
+export function TenantModal({ open, onOpenChange, onSuccess, tenant, mode = 'create' }: TenantModalProps) {
+  const isDelete = mode === 'delete';
+  const isReadOnly = isDelete;
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -90,6 +98,7 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
 
   // Verificação de disponibilidade do slug com debounce de 500ms
   useEffect(() => {
+    if (isDelete) return;
     if (!slug) {
       setSlugStatus('idle');
       return;
@@ -112,7 +121,7 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [slug, tenant?.id]);
+  }, [slug, tenant?.id, isDelete]);
 
   function handleNameChange(value: string) {
     setName(value);
@@ -124,7 +133,6 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
   function handleSlugChange(value: string) {
     setSlugManual(true);
     setSlug(value);
-    // Limpa o erro de slug do servidor ao editar manualmente
     setErrors((prev) => { const e = { ...prev }; delete e.slug; return e; });
   }
 
@@ -132,8 +140,8 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
     setSaving(true);
     setErrors({});
     try {
-      const path = isEdit ? `/v1/admin/tenants/${tenant.id}` : '/v1/admin/tenants';
-      const method = isEdit ? 'PUT' : 'POST';
+      const path = mode === 'edit' ? `/v1/admin/tenants/${tenant!.id}` : '/v1/admin/tenants';
+      const method = mode === 'edit' ? 'PUT' : 'POST';
       const res = await apiFetch(path, {
         method,
         body: JSON.stringify({ name, slug, expiration_date: expirationDate, active }),
@@ -154,11 +162,24 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
     }
   }
 
+  async function handleDelete() {
+    setSaving(true);
+    try {
+      await apiDelete(`/v1/admin/tenants/${tenant!.id}`);
+      onOpenChange(false);
+      onSuccess();
+    } catch {
+      // network error
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Alterando registro' : 'Criando registro'}</DialogTitle>
+          <DialogTitle>{TITLES[mode]}</DialogTitle>
         </DialogHeader>
 
         <DialogBody className="space-y-4">
@@ -171,6 +192,7 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Nome do tenant"
+              disabled={isReadOnly}
             />
             {errors.name && (
               <p className="text-sm text-destructive">{errors.name[0]}</p>
@@ -186,17 +208,18 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
               value={slug}
               onChange={(e) => handleSlugChange(e.target.value)}
               placeholder="slug-do-tenant"
+              disabled={isReadOnly}
             />
             {errors.slug && (
               <p className="text-sm text-destructive">{errors.slug[0]}</p>
             )}
-            {!errors.slug && slugStatus === 'checking' && (
+            {!isReadOnly && !errors.slug && slugStatus === 'checking' && (
               <p className="text-sm text-muted-foreground">Verificando...</p>
             )}
-            {!errors.slug && slugStatus === 'unavailable' && (
+            {!isReadOnly && !errors.slug && slugStatus === 'unavailable' && (
               <p className="text-sm text-destructive">Slug já em uso</p>
             )}
-            {!errors.slug && slugStatus === 'available' && (
+            {!isReadOnly && !errors.slug && slugStatus === 'available' && (
               <p className="text-sm text-green-600">Slug disponível</p>
             )}
           </div>
@@ -210,13 +233,14 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
               type="date"
               value={expirationDate}
               onChange={(e) => setExpirationDate(e.target.value)}
+              disabled={isReadOnly}
             />
             {errors.expiration_date && (
               <p className="text-sm text-destructive">{errors.expiration_date[0]}</p>
             )}
           </div>
 
-          {isEdit && (
+          {tenant && (
             <p className="text-xs text-muted-foreground pt-1">
               Criado em: {formatDate(tenant.created_at)} | Alterado em: {formatDate(tenant.updated_at)}
             </p>
@@ -225,16 +249,20 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
 
         <DialogFooter className="flex-row sm:justify-between items-center">
           <div className="flex items-center gap-2">
-            <Switch
-              id="tenant-active"
-              checked={active}
-              onCheckedChange={setActive}
-              size="sm"
-            />
-            {active ? (
-              <Badge variant="primary" appearance="light" size="sm" className="cursor-pointer" onClick={() => setActive(false)}>Ativo</Badge>
-            ) : (
-              <Badge variant="destructive" appearance="light" size="sm" className="cursor-pointer" onClick={() => setActive(true)}>Inativo</Badge>
+            {!isDelete && (
+              <>
+                <Switch
+                  id="tenant-active"
+                  checked={active}
+                  onCheckedChange={setActive}
+                  size="sm"
+                />
+                {active ? (
+                  <Badge variant="primary" appearance="light" size="sm" className="cursor-pointer" onClick={() => setActive(false)}>Ativo</Badge>
+                ) : (
+                  <Badge variant="destructive" appearance="light" size="sm" className="cursor-pointer" onClick={() => setActive(true)}>Inativo</Badge>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -243,13 +271,24 @@ export function TenantModal({ open, onOpenChange, onSuccess, tenant }: TenantMod
                 Cancelar
               </Button>
             </DialogClose>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={saving || slugStatus === 'unavailable' || slugStatus === 'checking'}
-            >
-              {saving ? 'Salvando...' : 'Salvar'}
-            </Button>
+            {isDelete ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={saving}
+              >
+                {saving ? 'Deletando...' : 'Deletar'}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || slugStatus === 'unavailable' || slugStatus === 'checking'}
+              >
+                {saving ? 'Salvando...' : 'Salvar'}
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
