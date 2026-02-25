@@ -2,6 +2,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   BarChart3,
+  Building2,
   Package,
   Settings,
   ShoppingCart,
@@ -28,6 +29,7 @@ export function SidebarMenu() {
   const { pathname } = useLocation();
 
   const items: Item[] = [
+    { icon: Building2,        path: '/tenants',      title: 'Tenants' },
     { icon: Users,            path: '/pessoas',      title: 'Pessoas' },
     { icon: Package,          path: '/produtos',     title: 'Produtos' },
     { icon: ShoppingCart,     path: '/compras',      title: 'Compras' },

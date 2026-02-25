@@ -36,6 +36,7 @@ export function NavbarMenu() {
 
   const dashboardItems = [
     { title: 'Geral', path: '/dashboard' },
+    { title: 'Tenants', path: '/tenants' },
     { title: 'Pessoas', path: '/pessoas' },
     { title: 'Produtos', path: '/produtos' },
     { title: 'Comercial', path: '/comercial' },

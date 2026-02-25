@@ -37,13 +37,26 @@ class ModuleController extends Controller
 
         $query = $modelClass::query();
 
-        if (in_array('order', $instance->getFillable())) {
-            $query->orderBy('order');
-        }
+        // Ordenação
+        $sort      = $request->input('sort', 'id');
+        $direction = $request->input('direction', 'asc') === 'desc' ? 'desc' : 'asc';
+        $allowed   = array_merge(['id', 'created_at', 'updated_at'], $instance->getFillable());
 
-        $items = $query->orderBy('id')->get();
+        $query->orderBy(in_array($sort, $allowed, true) ? $sort : 'id', $direction);
 
-        return response()->json($items);
+        // Paginação
+        $perPage = min(max((int) $request->input('per_page', 10), 1), 100);
+        $result  = $query->paginate($perPage);
+
+        return response()->json([
+            'data' => $result->items(),
+            'meta' => [
+                'current_page' => $result->currentPage(),
+                'last_page'    => $result->lastPage(),
+                'per_page'     => $result->perPage(),
+                'total'        => $result->total(),
+            ],
+        ]);
     }
 
     public function show(Request $request, int $id): JsonResponse

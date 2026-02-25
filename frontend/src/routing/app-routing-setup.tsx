@@ -2,6 +2,7 @@ import { AuthRouting } from '@/auth/auth-routing';
 import { RequireAuth } from '@/auth/require-auth';
 import { ErrorRouting } from '@/errors/error-routing';
 import { Demo3Layout } from '@/layouts/demo3/layout';
+import { TenantsPage } from '@/pages/tenants/page';
 import { PessoasPage } from '@/pages/pessoas/page';
 import { ProdutosPage } from '@/pages/produtos/page';
 import { ComprasPage } from '@/pages/compras/page';
@@ -390,6 +391,7 @@ export function AppRoutingSetup() {
             element={<AllProductsPage />}
           />
           <Route path="/auth/get-started" element={<AccountGetStartedPage />} />
+          <Route path="/tenants" element={<TenantsPage />} />
           <Route path="/pessoas" element={<PessoasPage />} />
           <Route path="/produtos" element={<ProdutosPage />} />
           <Route path="/compras" element={<ComprasPage />} />
