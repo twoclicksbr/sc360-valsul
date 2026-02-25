@@ -177,7 +177,10 @@ export function TenantsPage() {
       <Container>
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-xl font-semibold">Tenants</h1>
-          <Button size="sm">Novo</Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline">Export</Button>
+            <Button size="sm">Novo</Button>
+          </div>
         </div>
         <DataGridContainer>
           <DataGrid table={table} recordCount={total} isLoading={isLoading}>
