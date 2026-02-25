@@ -746,7 +746,7 @@ export function GenericGrid({
 
       {/* Modal de pesquisa */}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
-        <DialogContent aria-describedby={undefined} className="max-w-4xl">
+        <DialogContent aria-describedby={undefined} className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>Pesquisar</DialogTitle>
           </DialogHeader>

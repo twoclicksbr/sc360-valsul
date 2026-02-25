@@ -463,7 +463,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 |------|-----------|-----------|
 | `/` | `Navigate to="/dashboard"` | Redireciona para dashboard |
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
-| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + modal de pesquisa com filtros de módulo (Slug, Banco, Validade) ✅ — **só acessível no tenant `admin`**; outros são redirecionados para `/dashboard` |
+| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + modal de pesquisa com filtro de módulo (Validade) ✅ — **só acessível no tenant `admin`**; outros são redirecionados para `/dashboard` |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas (placeholder) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -575,7 +575,7 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
   &search_id=42&search_name=teste&search_type=contains
   &date_type=created_at&date_from=2025-01-01&date_to=2025-12-31
   &active=true&include_deleted=true
-  &[extras do módulo — ex: slugs=valsul,demo&banks=sc360_valsul]
+  &[extras do módulo — ex: expiration_date_from=2025-01-01&expiration_date_to=2025-12-31]
 ```
 
 **Drag & drop (implementado com `@dnd-kit`):**
