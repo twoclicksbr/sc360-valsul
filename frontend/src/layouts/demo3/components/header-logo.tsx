@@ -64,7 +64,7 @@ export function HeaderLogo() {
       </div>
 
       {/* Menu Section */}
-      <div className="flex items-center gap-3">
+      <div className="hidden items-center gap-3">
         <h3 className="text-accent-foreground text-base hidden md:block">
           SmartClick360°
         </h3>
