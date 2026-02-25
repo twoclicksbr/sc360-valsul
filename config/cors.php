@@ -20,7 +20,7 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        'http://sc360-valsul.test:5173',
+        'http://sc360.test:5173',
         'http://localhost:5173',
     ],
 

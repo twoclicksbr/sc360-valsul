@@ -40,7 +40,7 @@ Sistema simples de gerenciamento para loja de auto peças, desenvolvido em **Lar
 
 ### Documentação da API
 
-- **URL local:** https://sc360-valsul.test/docs
+- **URL local:** https://sc360.test/docs
 - **Regenerar:** `php artisan scribe:generate`
 
 ### Padrão de Tabelas
@@ -115,7 +115,7 @@ Resposta do login:
 |-------|-------|
 | `paths` | `['api/*', 'valsul/*', 'sanctum/csrf-cookie']` |
 | `allowed_methods` | `['*']` |
-| `allowed_origins` | `['http://sc360-valsul.test:5173', 'http://localhost:5173']` |
+| `allowed_origins` | `['http://sc360.test:5173', 'http://localhost:5173']` |
 | `allowed_headers` | `['Content-Type', 'Authorization', 'Accept', 'X-Requested-With']` |
 | `supports_credentials` | `true` |
 
@@ -131,7 +131,7 @@ Uma única `ModuleController` resolve o CRUD de qualquer módulo. Ela busca as c
 
 Padrão de URL: `api.{domínio}/valsul/{module}` e `api.{domínio}/valsul/{module}/{id}`
 
-As rotas da API estão restritas ao subdomínio `api` via `env('API_DOMAIN')` (ex: `api.sc360-valsul.test`). O `apiPrefix` está vazio — sem prefixo `/api` no path, apenas no subdomínio.
+As rotas da API estão restritas ao subdomínio `api` via `env('API_DOMAIN')` (ex: `api.sc360.test`). O `apiPrefix` está vazio — sem prefixo `/api` no path, apenas no subdomínio.
 
 #### Configuração de Módulo
 
@@ -150,7 +150,7 @@ Sem mexer em rotas, sem criar controller de CRUD. Tudo dinâmico.
 - **Pasta:** `frontend/`
 - **Versão:** Metronic v9.4.5 — React 19 + Vite 7 + TypeScript + Tailwind CSS 4
 - **Layout de referência:** `C:\Herd\themeforest\metronic\crm`
-- **URL local:** http://sc360-valsul.test:5173
+- **URL local:** http://sc360.test:5173
 - **Auth:** Laravel Sanctum ✅ — adapter e provider implementados e em uso
 - **Status:** instalado, rodando em dev
 - **Layout em uso:** `Demo1Layout` (`frontend/src/layouts/demo1/`)
@@ -163,7 +163,7 @@ VITE_APP_NAME=metronic-tailwind-react
 VITE_APP_VERSION=9.2.6
 
 ## Laravel API
-VITE_API_URL=http://api.sc360-valsul.test
+VITE_API_URL=http://api.sc360.test
 
 ## Supabase Configuration (placeholder — não utilizado)
 VITE_SUPABASE_URL=your_supabase_url

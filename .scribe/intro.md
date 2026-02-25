@@ -3,7 +3,7 @@
 API do sistema de gerenciamento Auto Peças
 
 <aside>
-    <strong>Base URL</strong>: <code>http://sc360-valsul.test</code>
+    <strong>Base URL</strong>: <code>http://sc360.test</code>
 </aside>
 
     This documentation aims to provide all the information you need to work with our API.

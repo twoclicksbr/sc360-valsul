@@ -15,7 +15,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 3000,
   },
   server: {
-    host: 'sc360-valsul.test',
+    host: 'sc360.test',
     port: 5173,
     https: false,
   },

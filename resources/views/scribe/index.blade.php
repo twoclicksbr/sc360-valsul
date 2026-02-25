@@ -26,7 +26,7 @@
             </style>
 
     <script>
-        var tryItOutBaseUrl = "http://sc360-valsul.test";
+        var tryItOutBaseUrl = "http://sc360.test";
         var useCsrf = Boolean();
         var csrfUrl = "/sanctum/csrf-cookie";
     </script>
@@ -85,7 +85,7 @@
         <h1 id="introduction">Introduction</h1>
 <p>API do sistema de gerenciamento Auto Peças</p>
 <aside>
-    <strong>Base URL</strong>: <code>http://sc360-valsul.test</code>
+    <strong>Base URL</strong>: <code>http://sc360.test</code>
 </aside>
 <pre><code>This documentation aims to provide all the information you need to work with our API.
 
