@@ -158,6 +158,7 @@ export function NavbarMenu() {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               className="min-w-[175px]"
+              align="start"
               sideOffset={0}
               onMouseEnter={handleDashboardEnter}
               onMouseLeave={handleDashboardLeave}
