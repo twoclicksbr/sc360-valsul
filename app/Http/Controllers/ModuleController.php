@@ -77,7 +77,13 @@ class ModuleController extends Controller
         $requestClass = $this->requestClass($mod);
 
         $formRequest = app($requestClass);
-        $item        = $modelClass::create($formRequest->validated());
+        $validated   = $formRequest->validated();
+
+        if (! isset($validated['order'])) {
+            $validated['order'] = ($modelClass::max('order') ?? 0) + 1;
+        }
+
+        $item = $modelClass::create($validated);
 
         return response()->json($item, 201);
     }
