@@ -6,7 +6,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronsUpDown, Download } from 'lucide-react';
 import { Container } from '@/components/common/container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -178,7 +178,7 @@ export function TenantsPage() {
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-xl font-semibold">Tenants</h1>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline">Export</Button>
+            <Button size="sm" variant="outline"><Download className="size-4" />Export</Button>
             <Button size="sm">Novo</Button>
           </div>
         </div>
