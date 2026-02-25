@@ -120,6 +120,39 @@ export function NavbarMenu() {
     <div className="grid">
       <div className="kt-scrollable-x-auto flex items-stretch">
         <Menubar className="space-x-0 flex items-stretch border-none bg-transparent gap-5 p-0 h-auto">
+          <MenubarMenu>
+            <MenubarTrigger
+              className={cn(
+                'flex items-center gap-1 px-0 py-3.5 text-sm text-secondary-foreground text-nowrap',
+                'rounded-none border-b-2 border-transparent bg-transparent!',
+                'hover:text-mono hover:bg-transparent',
+                'focus:text-mono focus:bg-transparent',
+                'data-[state=open]:bg-transparent data-[state=open]:text-mono',
+                'data-[here=true]:text-mono data-[here=true]:border-mono',
+              )}
+              data-here={isActive('/dashboard') || undefined}
+            >
+              Dashboard
+              <ChevronDown className="ms-auto size-3.5!" />
+            </MenubarTrigger>
+            <MenubarContent className="min-w-[175px]" sideOffset={0}>
+              <MenubarItem asChild>
+                <Link to="/dashboard">Geral</Link>
+              </MenubarItem>
+              <MenubarItem asChild>
+                <Link to="/pessoas">Pessoas</Link>
+              </MenubarItem>
+              <MenubarItem asChild>
+                <Link to="/produtos">Produtos</Link>
+              </MenubarItem>
+              <MenubarItem asChild>
+                <Link to="/comercial">Comercial</Link>
+              </MenubarItem>
+              <MenubarItem asChild>
+                <Link to="/financeiro">Financeiro</Link>
+              </MenubarItem>
+            </MenubarContent>
+          </MenubarMenu>
           {buildMenu(navbarMenu.children as MenuConfig)}
         </Menubar>
       </div>
