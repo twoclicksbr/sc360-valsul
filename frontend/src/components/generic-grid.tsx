@@ -1,4 +1,4 @@
-import { type ComponentType, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type ColumnDef,
   getCoreRowModel,
@@ -10,19 +10,20 @@ import {
 import { type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
 import { arrayMove, useSortable } from '@dnd-kit/sortable';
 import {
+  CalendarIcon,
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
   Download,
-  Eye,
   GripVertical,
-  Pencil,
-  RotateCcw,
   Search,
-  Trash2,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { type DateRange } from 'react-day-picker';
+import { GridActions } from '@/components/grid-actions';
 import { Container } from '@/components/common/container';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataGrid, DataGridContainer } from '@/components/ui/data-grid';
@@ -31,6 +32,19 @@ import { DataGridTable } from '@/components/ui/data-grid-table';
 import { DataGridTableDndRows } from '@/components/ui/data-grid-table-dnd-rows';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { apiGet, apiPut } from '@/lib/api';
 import { getTenantSlug } from '@/lib/tenant';
 
@@ -58,6 +72,7 @@ export interface ColumnConfig {
   alignHead?: 'start' | 'center' | 'end';
   alignBody?: 'start' | 'center' | 'end';
   badgeOptions?: Record<string, { label: string; variant: string }>;
+  meta?: { headerClassName?: string; cellClassName?: string; style?: React.CSSProperties };
 }
 
 export interface GenericGridProps {
@@ -90,6 +105,13 @@ export interface GenericGridProps {
 
   // Paginação
   showPagination?: boolean;
+
+  // Filtros específicos do módulo (segunda linha no modal de pesquisa)
+  renderSearchFilters?: React.ReactNode;
+  onDataLoad?: (data: Record<string, unknown>[]) => void;
+  onClearSearchFilters?: () => void;
+  onSearch?: (baseFilters: Record<string, string>) => Record<string, string>;
+  hasModuleFilters?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,8 +242,19 @@ export function GenericGrid({
   showBtnExport  = true,
   showBulkActions = true,
   showPagination  = true,
+  renderSearchFilters,
+  onDataLoad,
+  onClearSearchFilters,
+  onSearch,
+  hasModuleFilters = false,
 }: GenericGridProps) {
   const tenant = getTenantSlug();
+  const onDataLoadRef = useRef(onDataLoad);
+  onDataLoadRef.current = onDataLoad;
+  const onSearchRef = useRef(onSearch);
+  onSearchRef.current = onSearch;
+  const onClearSearchFiltersRef = useRef(onClearSearchFilters);
+  onClearSearchFiltersRef.current = onClearSearchFilters;
 
   // ---------------------------------------------------------------------------
   // State
@@ -235,6 +268,29 @@ export function GenericGrid({
   const [pagination, setPagination]         = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection]     = useState<RowSelectionState>({});
   const [modalOpen, setModalOpen]           = useState(false);
+  const [searchOpen, setSearchOpen]         = useState(false);
+  const [searchDeleted, setSearchDeleted]   = useState(false);
+  const [searchId, setSearchId]                       = useState('');
+  const [searchContentMode, setSearchContentMode]     = useState('contains');
+  const [searchContentText, setSearchContentText]     = useState('');
+  const [searchActive, setSearchActive]               = useState('all');
+  const [searchPerPage, setSearchPerPage]             = useState('10');
+  const [searchDateType, setSearchDateType]           = useState('created_at');
+  const [searchDateRange, setSearchDateRange]         = useState<DateRange | undefined>(undefined);
+  const hasFilters = useMemo(
+    () =>
+      searchId !== '' ||
+      searchContentMode !== 'contains' ||
+      searchContentText !== '' ||
+      searchDateType !== 'created_at' ||
+      searchDateRange?.from !== undefined ||
+      searchPerPage !== '10' ||
+      searchActive !== 'all' ||
+      searchDeleted ||
+      hasModuleFilters,
+    [searchId, searchContentMode, searchContentText, searchDateType, searchDateRange, searchPerPage, searchActive, searchDeleted, hasModuleFilters],
+  );
+  const [activeFilters, setActiveFilters]   = useState<Record<string, string>>({});
   const [modalMode, setModalMode]           = useState<RowMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<AnyRecord | null>(null);
 
@@ -260,17 +316,25 @@ export function GenericGrid({
       const { pageIndex, pageSize } = pagination;
       const sort      = sorting[0]?.id ?? 'order';
       const direction = sorting[0]?.desc ? 'desc' : 'asc';
+      const params = new URLSearchParams({
+        page: String(pageIndex + 1),
+        per_page: String(pageSize),
+        sort,
+        direction,
+        ...activeFilters,
+      });
       const res = await apiGet<{ data: AnyRecord[]; meta: { total: number } }>(
-        `/v1/${tenant}/${moduleConfig.name_url}?page=${pageIndex + 1}&per_page=${pageSize}&sort=${sort}&direction=${direction}`,
+        `/v1/${tenant}/${moduleConfig.name_url}?${params.toString()}`,
       );
       setData(res.data);
       setTotal(res.meta.total);
+      onDataLoadRef.current?.(res.data);
     } catch (err) {
       console.error('[GenericGrid] Erro ao buscar dados:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [moduleConfig, pagination, sorting, tenant]);
+  }, [moduleConfig, pagination, sorting, tenant, activeFilters]);
 
   useEffect(() => {
     fetchData();
@@ -358,6 +422,48 @@ export function GenericGrid({
   );
 
   // ---------------------------------------------------------------------------
+  // Search handlers
+  // ---------------------------------------------------------------------------
+
+  const handleClearFilters = useCallback(() => {
+    setSearchId('');
+    setSearchContentMode('contains');
+    setSearchContentText('');
+    setSearchActive('all');
+    setSearchPerPage('10');
+    setSearchDateType('created_at');
+    setSearchDateRange(undefined);
+    setSearchDeleted(false);
+    onClearSearchFiltersRef.current?.();
+    setActiveFilters({});
+    setPagination((p) => ({ ...p, pageIndex: 0, pageSize: 10 }));
+  }, []);
+
+  const handleSearch = useCallback(() => {
+    const filters: Record<string, string> = {};
+    if (searchId) filters['search_id'] = searchId;
+    if (searchContentText) {
+      filters['search_name'] = searchContentText;
+      filters['search_type'] = searchContentMode;
+    }
+    if (searchDateRange?.from) {
+      filters['date_type'] = searchDateType;
+      filters['date_from'] = format(searchDateRange.from, 'yyyy-MM-dd');
+      if (searchDateRange.to) filters['date_to'] = format(searchDateRange.to, 'yyyy-MM-dd');
+    }
+    if (searchActive !== 'all') filters['active'] = searchActive === 'active' ? 'true' : 'false';
+    if (searchDeleted) filters['include_deleted'] = 'true';
+
+    const extra = onSearchRef.current?.(filters) ?? {};
+    const allFilters = { ...filters, ...extra };
+
+    const newPageSize = parseInt(searchPerPage, 10);
+    setPagination({ pageIndex: 0, pageSize: newPageSize });
+    setActiveFilters(allFilters);
+    setSearchOpen(false);
+  }, [searchId, searchContentText, searchContentMode, searchDateRange, searchDateType, searchActive, searchDeleted, searchPerPage]);
+
+  // ---------------------------------------------------------------------------
   // Columns
   // ---------------------------------------------------------------------------
 
@@ -368,10 +474,9 @@ export function GenericGrid({
     if (showDrag) {
       cols.push({
         id: 'drag',
-        size: 40,
         header: () => null,
         cell: ({ row }) => <DragHandle rowId={row.id} />,
-        meta: { skeleton: <span className="block w-4 h-4" /> },
+        meta: { style: { width: '5%' }, skeleton: <span className="block w-4 h-4" /> },
       });
     }
 
@@ -379,7 +484,6 @@ export function GenericGrid({
     if (showCheckbox) {
       cols.push({
         id: 'select',
-        size: 40,
         header: ({ table }) => (
           <Checkbox
             checked={
@@ -400,7 +504,7 @@ export function GenericGrid({
             aria-label="Selecionar linha"
           />
         ),
-        meta: { skeleton: <Skeleton className="h-4 w-4" /> },
+        meta: { style: { width: '5%' }, skeleton: <Skeleton className="h-4 w-4" /> },
       });
     }
 
@@ -408,7 +512,6 @@ export function GenericGrid({
     if (showId) {
       cols.push({
         accessorKey: 'id',
-        size: 70,
         header: ({ column }) => (
           <button
             className="flex items-center gap-1 hover:text-foreground"
@@ -417,7 +520,7 @@ export function GenericGrid({
             ID <SortIcon sorted={column.getIsSorted()} />
           </button>
         ),
-        meta: { skeleton: <Skeleton className="h-4 w-8" /> },
+        meta: { style: { width: '5%' }, skeleton: <Skeleton className="h-4 w-8" /> },
       });
     }
 
@@ -445,6 +548,7 @@ export function GenericGrid({
         meta: {
           ...(headTextCls ? { headerClassName: headTextCls } : {}),
           ...(bodyTextCls ? { cellClassName: bodyTextCls } : {}),
+          ...col.meta,
           skeleton: <Skeleton className="h-4 w-24" />,
         },
       };
@@ -456,7 +560,6 @@ export function GenericGrid({
     if (showActive) {
       cols.push({
         accessorKey: 'active',
-        size: 90,
         header: 'Ativo',
         cell: ({ getValue }) =>
           getValue<boolean>() ? (
@@ -464,70 +567,31 @@ export function GenericGrid({
           ) : (
             <Badge variant="destructive" appearance="light" size="sm">Inativo</Badge>
           ),
-        meta: { skeleton: <Skeleton className="h-5 w-14" /> },
+        meta: { style: { width: '7%' }, skeleton: <Skeleton className="h-5 w-14" /> },
       });
     }
 
     // — actions
     if (showActions) {
-      const btnCount   = [showActionShow, showActionEdit, showActionDelete, showActionRestore].filter(Boolean).length;
-      const actionsWidth = Math.max(60, btnCount * 36 + 16);
-
       cols.push({
         id: 'actions',
-        size: actionsWidth,
         header: () => <span className="text-right block">Ações</span>,
         cell: ({ row }) => {
           const record    = row.original;
           const isDeleted = Boolean(record.deleted_at);
           return (
-            <TooltipProvider>
-              <div className="flex items-center justify-end gap-1">
-                {showActionShow && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button size="sm" variant="ghost" mode="icon" onClick={() => openModal('show', record)}>
-                        <Eye className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">Visualizar</TooltipContent>
-                  </Tooltip>
-                )}
-                {showActionEdit && !isDeleted && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button size="sm" variant="ghost" mode="icon" onClick={() => openModal('edit', record)}>
-                        <Pencil className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">Editar</TooltipContent>
-                  </Tooltip>
-                )}
-                {showActionDelete && !isDeleted && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button size="sm" variant="ghost" mode="icon" onClick={() => openModal('delete', record)}>
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">Deletar</TooltipContent>
-                  </Tooltip>
-                )}
-                {showActionRestore && isDeleted && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button size="sm" variant="ghost" mode="icon" onClick={() => openModal('restore', record)}>
-                        <RotateCcw className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">Restaurar</TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-            </TooltipProvider>
+            <GridActions
+              record={record}
+              isDeleted={isDeleted}
+              showActionShow={showActionShow}
+              showActionEdit={showActionEdit}
+              showActionDelete={showActionDelete}
+              showActionRestore={showActionRestore}
+              openModal={openModal}
+            />
           );
         },
-        meta: { skeleton: <Skeleton className="h-8 w-16" /> },
+        meta: { style: { width: '10%' }, skeleton: <Skeleton className="h-8 w-16" /> },
       });
     }
 
@@ -616,14 +680,14 @@ export function GenericGrid({
                 <Download className="size-4" />Export
               </Button>
             )}
-            {showBtnSearch && (
-              <Button size="sm" variant="outline">
-                <Search className="size-4" />Pesquisar
-              </Button>
-            )}
             {showBtnNew && (
               <Button size="sm" onClick={() => openModal('create')}>
                 Novo
+              </Button>
+            )}
+            {showBtnSearch && (
+              <Button size="sm" variant="outline" onClick={() => setSearchOpen(true)}>
+                <Search className="size-4" />Pesquisar
               </Button>
             )}
           </div>
@@ -631,7 +695,7 @@ export function GenericGrid({
 
         {/* Grid */}
         <DataGridContainer>
-          <DataGrid table={table} recordCount={total} isLoading={isLoading} loadingMode="skeleton">
+          <DataGrid table={table} recordCount={total} isLoading={isLoading} loadingMode="skeleton" tableClassNames={{ base: 'table-fixed w-full' }}>
 
             {/* Barra de ações em massa */}
             {showBulkActions && selectedCount > 0 && (
@@ -679,6 +743,172 @@ export function GenericGrid({
         onSuccess={fetchData}
         size={modalSize}
       />
+
+      {/* Modal de pesquisa */}
+      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <DialogContent aria-describedby={undefined} className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Pesquisar</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="grid grid-cols-12 gap-4 items-end">
+
+              {/* ID — col-span-1 */}
+              <div className="col-span-1">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="ID"
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value.replace(/\D/g, ''))}
+                />
+              </div>
+
+              {/* Tipo — col-span-2 */}
+              <div className="col-span-2">
+                <Select value={searchContentMode} onValueChange={setSearchContentMode}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contains">Contém</SelectItem>
+                    <SelectItem value="starts">Início exato</SelectItem>
+                    <SelectItem value="exact">Exato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Nome — col-span-4 */}
+              <div className="col-span-4">
+                <Input
+                  type="text"
+                  placeholder="Nome"
+                  value={searchContentText}
+                  onChange={(e) => setSearchContentText(e.target.value)}
+                />
+              </div>
+
+              {/* Data — col-span-2 */}
+              <div className="col-span-2">
+                <Select value={searchDateType} onValueChange={setSearchDateType}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Criado em</SelectItem>
+                    <SelectItem value="updated_at">Alterado em</SelectItem>
+                    <SelectItem value="deleted_at">Excluído em</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Período — col-span-3 */}
+              <div className="col-span-3">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start font-normal text-left">
+                      <CalendarIcon className="size-4 opacity-60" />
+                      {searchDateRange?.from ? (
+                        searchDateRange.to ? (
+                          <span>{format(searchDateRange.from, 'dd/MM/yyyy')} — {format(searchDateRange.to, 'dd/MM/yyyy')}</span>
+                        ) : (
+                          format(searchDateRange.from, 'dd/MM/yyyy')
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">Selecionar período</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="range"
+                      defaultMonth={searchDateRange?.from}
+                      selected={searchDateRange}
+                      onSelect={setSearchDateRange}
+                      numberOfMonths={2}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+            </div>
+
+            {/* Linha 2 — filtros específicos do módulo */}
+            {renderSearchFilters && (
+              <div className="mt-4">
+                {renderSearchFilters}
+              </div>
+            )}
+
+            {/* Linha 3 — Registro + Ativo */}
+            <div className="mt-4 grid grid-cols-12 gap-4 items-end">
+
+              {/* Registro */}
+              <div className="col-span-3">
+                <Select value={searchPerPage} onValueChange={setSearchPerPage}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">Exibir 10 registros</SelectItem>
+                    <SelectItem value="20">Exibir 20 registros</SelectItem>
+                    <SelectItem value="25">Exibir 25 registros</SelectItem>
+                    <SelectItem value="50">Exibir 50 registros</SelectItem>
+                    <SelectItem value="100">Exibir 100 registros</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Ativo */}
+              <div className="col-span-3">
+                <Select value={searchActive} onValueChange={setSearchActive}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Ativos</SelectItem>
+                    <SelectItem value="active">Ativos</SelectItem>
+                    <SelectItem value="inactive">Inativos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+            </div>
+          </DialogBody>
+          <DialogFooter className="flex-row sm:justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={searchDeleted}
+                onCheckedChange={setSearchDeleted}
+                className="data-[state=checked]:bg-destructive"
+              />
+              <Badge
+                variant="destructive"
+                appearance="light"
+                className="cursor-pointer"
+                onClick={() => setSearchDeleted((v) => !v)}
+              >
+                {searchDeleted ? 'Ocultando deletados' : 'Mostrar deletados'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              {hasFilters ? (
+                <Button size="sm" variant="destructive" appearance="ghost" onClick={handleClearFilters}>
+                  Limpar Filtros
+                </Button>
+              ) : (
+                <DialogClose asChild>
+                  <Button size="sm" variant="outline">Fechar</Button>
+                </DialogClose>
+              )}
+              <Button size="sm" onClick={handleSearch}>
+                Pesquisar
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

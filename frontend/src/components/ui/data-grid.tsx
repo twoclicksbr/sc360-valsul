@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, ReactNode, useContext } from 'react';
+import { createContext, CSSProperties, ReactNode, useContext } from 'react';
 import { cn } from '@/lib/utils';
 import { ColumnFiltersState, RowData, SortingState, Table } from '@tanstack/react-table';
 
@@ -10,6 +10,7 @@ declare module '@tanstack/react-table' {
     headerTitle?: string;
     headerClassName?: string;
     cellClassName?: string;
+    style?: CSSProperties;
     skeleton?: ReactNode;
     expandedContent?: (row: TData) => ReactNode;
   }

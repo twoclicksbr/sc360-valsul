@@ -48,7 +48,8 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan db:seed --class=MainSeeder --database=main)",
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan tinker --database=main 2)",
       "Bash(1:*)",
-      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan tinker 2)"
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan tinker 2)",
+      "Bash(npm run dev)"
     ]
   }
 }

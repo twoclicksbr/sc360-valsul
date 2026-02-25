@@ -130,6 +130,7 @@ function DataGridTableHeadRowCell<TData>({
         ...(props.tableLayout?.width === 'fixed' && {
           width: `${header.getSize()}px`,
         }),
+        ...header.column.columnDef.meta?.style,
         ...(props.tableLayout?.columnsPinnable && column.getCanPin() && getPinningStyles(column)),
         ...(dndStyle ? dndStyle : null),
       }}
@@ -220,6 +221,7 @@ function DataGridTableBodyRowSkeletonCell<TData>({ children, column }: { childre
 
   return (
     <td
+      style={{ ...column.columnDef.meta?.style }}
       className={cn(
         'align-middle',
         bodyCellSpacing,
@@ -317,6 +319,7 @@ function DataGridTableBodyRowCell<TData>({
       ref={dndRef}
       {...(props.tableLayout?.columnsDraggable && !isPinned ? { cell } : {})}
       style={{
+        ...cell.column.columnDef.meta?.style,
         ...(props.tableLayout?.columnsPinnable && column.getCanPin() && getPinningStyles(column)),
         ...(dndStyle ? dndStyle : null),
       }}

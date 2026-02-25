@@ -16,6 +16,26 @@
 - NÃO fazer git add/commit/push — o git só é executado pelo comando /docs
 - Implementar SOMENTE o código solicitado na tarefa
 
+## Comandos do Claude Code
+
+Slash commands implementados como arquivos em `.claude/commands/`. Invocar com `/nome-do-comando`.
+
+### /docs
+Sincroniza o CLAUDE.md e faz git commit/push. Único momento em que o git é executado.
+Arquivo: `.claude/commands/docs.md`
+
+### /vite
+Inicia o Vite dev server em background sem bloquear o terminal.
+Arquivo: `.claude/commands/vite.md`
+
+### /vite-reset
+Fecha o Vite (se estiver rodando na porta 5173) e inicia novamente em background.
+Arquivo: `.claude/commands/vite-reset.md`
+
+### /vite-close
+Fecha o processo do Vite na porta 5173 e confirma o encerramento.
+Arquivo: `.claude/commands/vite-close.md`
+
 ## Regras do Chat (claude.ai)
 
 - Não usar caixas de perguntas (widgets de seleção). Sempre perguntar em texto direto.
@@ -421,7 +441,7 @@ src/
 │   ├── auth-routing.tsx
 │   ├── auth-routes.tsx
 │   └── require-auth.tsx
-├── components/           ← componentes reutilizáveis (generic-grid.tsx, generic-modal.tsx)
+├── components/           ← componentes reutilizáveis (generic-grid.tsx, generic-modal.tsx, grid-actions.tsx)
 ├── config/               ← configurações do app
 ├── css/                  ← estilos globais
 ├── errors/               ← páginas de erro (404, etc.)
@@ -443,7 +463,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 |------|-----------|-----------|
 | `/` | `Navigate to="/dashboard"` | Redireciona para dashboard |
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
-| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ — **só acessível no tenant `admin`**; outros são redirecionados para `/dashboard` |
+| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + modal de pesquisa com filtros de módulo (Slug, Banco, Validade) ✅ — **só acessível no tenant `admin`**; outros são redirecionados para `/dashboard` |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas (placeholder) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -520,15 +540,43 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 
 - Recebe `moduleId` + `columns` (config declarativa) + `modalComponent` — tudo reutilizável
 - Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, name_url)
-- Colunas configuráveis: `key`, `label`, `sortable`, `type` (text/date/datetime/boolean/badge/currency), `width`, `alignHead`, `alignBody`
+- Colunas configuráveis: `key`, `label`, `sortable`, `type` (text/date/datetime/boolean/badge/currency), `alignHead`, `alignBody`, `meta` (`{ style?: CSSProperties }`) — largura via `meta: { style: { width: '12%' } }`
 - Colunas padrão: drag handle, checkbox, id, active (badge) — toggle via props `showDrag`, `showCheckbox`, `showId`, `showActive`
-- Ações por linha: show, edit, delete, restore — toggle via props `showAction*`; edit/delete ocultos em soft-deleted; restore visível apenas em soft-deleted
+- Ações por linha extraídas para `GridActions` (`frontend/src/components/grid-actions.tsx`) — show, edit, delete, restore — toggle via props `showAction*`; edit/delete ocultos em soft-deleted; restore visível apenas em soft-deleted
 - Botões topo: Novo, Pesquisar, Export — toggle via `showBtn*`
 - Paginação — exibida somente quando necessário; toggle via `showPagination`
 - Order by — clique no cabeçalho da coluna; **ordenação padrão: `order DESC`**
 - Ações em massa — ativar/desativar via checkboxes; toggle via `showBulkActions`
 - Btn novo — sempre abre modal com `mode='create'`
-- Btn pesquisar — a implementar
+- Btn pesquisar — abre `Dialog` de pesquisa (implementado) ✅
+- `fetchData` usa `URLSearchParams` — inclui `activeFilters` spread nos params da query
+
+**Props de pesquisa (`GenericGridProps`):**
+- `renderSearchFilters` — `ReactNode` com filtros específicos do módulo (linha 2 do modal)
+- `onDataLoad(data)` — callback chamada após cada fetch (para o pai consumir os dados carregados)
+- `onClearSearchFilters()` — chamada ao limpar filtros; pai reseta seus próprios filtros específicos
+- `onSearch(baseFilters)` — chamada ao pesquisar; retorna `Record<string, string>` com params extras do módulo
+- `hasModuleFilters` — `boolean` controlado pelo pai; `true` quando algum filtro específico do módulo está ativo
+
+**Modal de pesquisa — filtros padrão:**
+- ID, Tipo (contains/starts/exact), Nome, Data (created_at/updated_at/deleted_at), Período (date range), Registros por página (10/20/25/50/100), Ativo (all/active/inactive), Switch "Mostrar deletados"
+- `hasFilters` — `useMemo` que monitora TODOS os states; `true` quando qualquer filtro difere do default:
+  - `searchId !== ''` | `searchContentMode !== 'contains'` | `searchContentText !== ''`
+  - `searchDateType !== 'created_at'` | `searchDateRange?.from !== undefined`
+  - `searchPerPage !== '10'` | `searchActive !== 'all'` | `searchDeleted !== false` | `hasModuleFilters`
+- Botão "Limpar Filtros" — visível quando `hasFilters === true`; reseta tudo, chama `onClearSearchFilters`, mantém modal aberto
+- Botão "Fechar" — visível quando `hasFilters === false`
+- Botão "Pesquisar" — sempre visível; monta `activeFilters`, chama `onSearch` para extras do módulo, atualiza `pagination.pageSize`, fecha modal
+- `activeFilters` state — persiste os filtros aplicados entre aberturas do modal; passado como spread no `URLSearchParams` do `fetchData`
+
+**Params enviados à API (`fetchData`):**
+```
+?page=1&per_page=10&sort=order&direction=desc
+  &search_id=42&search_name=teste&search_type=contains
+  &date_type=created_at&date_from=2025-01-01&date_to=2025-12-31
+  &active=true&include_deleted=true
+  &[extras do módulo — ex: slugs=valsul,demo&banks=sc360_valsul]
+```
 
 **Drag & drop (implementado com `@dnd-kit`):**
 - Componente `DragHandle` usa `useSortable` do `@dnd-kit/sortable`; tooltip "Arrastar para reordenar" some durante o drag (`isDragging ? false : undefined`)
