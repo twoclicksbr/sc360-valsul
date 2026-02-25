@@ -474,10 +474,22 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 
 - Colunas: btn order (drag & drop), checkbox, id, campos do módulo, active (badge success/danger), ações (show/create/edit/delete/restore)
 - Paginação — exibida somente quando necessário
-- Order by — clique no cabeçalho da coluna
+- Order by — clique no cabeçalho da coluna; **ordenação padrão: `order DESC`**
 - Ações em massa — ativar/desativar via checkboxes
-- Btn novo — sempre abre modal
+- Btn novo — sempre abre modal; seta `mode='create'` e limpa `selectedTenant`
 - Btn pesquisar — abre modal com campos do módulo, ignora campos vazios na URL
+
+**Drag & drop (implementado com `@dnd-kit`):**
+- Componente `DragHandle` usa `useSortable` do `@dnd-kit/sortable`
+- `DataGridTableDndRows` envolve o grid com `DndContext`
+- `handleDragEnd`: recalcula `order` de todos os itens da página (`baseOrder = total - pageIndex * pageSize`, decrementa por posição)
+- **Update otimista**: `setData(newDataWithOrders)` antes das chamadas à API — sem reload visual
+- Só os itens cujo `order` mudou de fato são enviados via PUT (otimização)
+- Reverte para estado do banco via `fetchData()` em caso de erro
+
+**Auto-order no backend (`ModuleController.store`):**
+- Se `order` não vier no payload: `order = MAX(order) + 1`
+- Novos registros sempre aparecem no topo quando ordenado por `order DESC`
 
 ---
 
@@ -486,25 +498,40 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 **Tamanhos:** `p`, `m`, `g` (definido por variável na index)
 
 **Estrutura:**
-- **Header esquerda:** label da ação (Criando / Alterando / Visualizando / Restaurando registro)
-- **Header direita:** btn X (`btn-sm btn-light-danger`)
+- **Header esquerda:** label da ação (Criando / Alterando / Deletando / Visualizando / Restaurando registro)
+- **Header direita:** btn X (fecha o modal)
 - **Content linha 1:** campos do módulo
-- **Content linha 2:** Criado em: dd/mm/yyyy | Alterado em: dd/mm/yyyy | Deletado em: dd/mm/yyyy (`text-danger`, só aparece se soft deleted)
-- **Footer esquerda:** switch ativo/inativo
+- **Content linha 2:** `Criado em: dd/mm/yyyy | Alterado em: dd/mm/yyyy` — aparece sempre que `tenant` está carregado (edit/delete); `Deletado em: dd/mm/yyyy` em `text-danger` — aparece apenas em registros soft-deleted (restore) — a implementar
+- **Footer esquerda:** switch ativo/inativo + badge clicável (só nos modos create/edit/restore — oculto no delete)
 - **Footer direita:** botões conforme ação
+
+**Badge do switch (implementado):**
+- `active = true` → `<Badge variant="primary" appearance="light">Ativo</Badge>` (clicável → seta false)
+- `active = false` → `<Badge variant="destructive" appearance="light">Inativo</Badge>` (clicável → seta true)
 
 **Regras por ação:**
 
-| Ação | Campos | Switch | Botões |
-|------|--------|--------|--------|
-| Create | editáveis | ativo | cancelar + salvar |
-| Edit | editáveis | ativo | cancelar + salvar |
-| Show | readonly | — | cancelar |
-| Delete | readonly | — | deletar + cancelar |
-| Restore | readonly → edit | ativo | cancelar + salvar |
+| Ação | Campos | Switch+Badge | Botões |
+|------|--------|--------------|--------|
+| Create | editáveis | ✅ visível | Cancelar + Salvar |
+| Edit | editáveis | ✅ visível | Cancelar + Salvar |
+| Show | readonly | — oculto | Cancelar |
+| Delete | readonly (disabled) | — oculto | Cancelar + Deletar (destructive) |
+| Restore | readonly → edit | ✅ visível | Cancelar + Salvar |
+
+**Modos implementados:** `create`, `edit`, `delete` ✅ — `show`, `restore` a implementar
+
+**Prop `mode` no modal:** `'create' | 'edit' | 'delete'` — controla título, campos, switch e botões
+
+**Validação de slug em tempo real (tenants):**
+- `useEffect` com debounce de 500ms observa `slug`
+- Chama `GET /v1/admin/tenants/check-slug?slug=&exclude_id=`
+- Status: `idle | checking | available | unavailable`
+- Botão Salvar desabilitado enquanto `checking` ou `unavailable`
+- Ignorado no modo `delete`
 
 **Regras extras:**
-- Ao deletar, `active` é setado para `false` automaticamente
+- Ao deletar, `active` é setado para `false` automaticamente (backend: `destroy` do `ModuleController`)
 - Ao restaurar, modal muda para modo edit
 - Existe um único componente modal reutilizável para todos os módulos — não criar outros modais de CRUD salvo casos extremamente necessários
 
