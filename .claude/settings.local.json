@@ -13,7 +13,17 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan vendor:publish:*)",
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan scribe:generate)",
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan route:list)",
-      "Bash(C:\\\\Users\\\\alexa\\\\.config\\\\herd\\\\bin\\\\php84\\\\php.exe artisan:*)"
+      "Bash(C:\\\\Users\\\\alexa\\\\.config\\\\herd\\\\bin\\\\php84\\\\php.exe artisan:*)",
+      "Bash(unzip:*)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" --version)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" -r \":*)",
+      "Bash(npm install:*)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan install:api)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan config:show:*)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan config:publish cors)",
+      "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan db:seed)",
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)"
     ]
   }
 }
