@@ -1,5 +1,6 @@
 import React, { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type Column,
   type ColumnDef,
   getCoreRowModel,
   type PaginationState,
@@ -10,19 +11,25 @@ import {
 import { type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
 import { arrayMove, useSortable } from '@dnd-kit/sortable';
 import {
+  ArrowDown,
+  ArrowUp,
   CalendarIcon,
-  ChevronDown,
-  ChevronUp,
+  Check,
   ChevronsUpDown,
   Download,
+  FileSpreadsheet,
+  FileText,
   GripVertical,
   Search,
+  SearchX,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { type DateRange } from 'react-day-picker';
 import { GridActions } from '@/components/grid-actions';
 import { Container } from '@/components/common/container';
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -72,6 +79,7 @@ export interface ColumnConfig {
   alignHead?: 'start' | 'center' | 'end';
   alignBody?: 'start' | 'center' | 'end';
   badgeOptions?: Record<string, { label: string; variant: string }>;
+  render?: (value: unknown, record: AnyRecord, openModal: (mode: RowMode, record: AnyRecord) => void) => React.ReactNode;
   meta?: { headerClassName?: string; cellClassName?: string; style?: React.CSSProperties };
 }
 
@@ -119,13 +127,24 @@ export interface GenericGridProps {
 // ---------------------------------------------------------------------------
 
 function formatDate(value: unknown): string {
+  console.log('formatDate input:', value);
   if (!value) return '—';
-  return new Date(value as string).toLocaleDateString('pt-BR');
+  const str = value as string;
+  // Data pura YYYY-MM-DD — parsear manualmente sem new Date (evita problemas de timezone)
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+  // Datetime ou outros formatos — usar Date normalmente
+  return new Date(str).toLocaleDateString('pt-BR');
 }
 
 function formatDatetime(value: unknown): string {
   if (!value) return '—';
-  return new Date(value as string).toLocaleString('pt-BR');
+  const str = value as string;
+  // Timestamps sem timezone (ex: "2026-02-26 10:30:00") — normalizar separador para T
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str) ? str.replace(' ', 'T') : str;
+  return new Date(normalized).toLocaleString('pt-BR');
 }
 
 function formatCurrency(value: unknown): string {
@@ -143,11 +162,6 @@ function parseWidthPx(width?: string): number | undefined {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
-  if (sorted === 'asc') return <ChevronUp className="size-3.5" />;
-  if (sorted === 'desc') return <ChevronDown className="size-3.5" />;
-  return <ChevronsUpDown className="size-3.5 opacity-40" />;
-}
 
 function DragHandle({ rowId }: { rowId: string }) {
   const { attributes, listeners, isDragging } = useSortable({ id: rowId });
@@ -166,6 +180,49 @@ function DragHandle({ rowId }: { rowId: string }) {
         <TooltipContent side="right">Arrastar para reordenar</TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+function SortableColumnHeader({ column, label, headFlex, onResetSorting }: {
+  column: Column<AnyRecord>;
+  label: string;
+  headFlex: string;
+  onResetSorting: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className={`text-secondary-foreground rounded-md font-normal -ms-2 px-2 h-7 hover:bg-secondary data-[state=open]:bg-secondary hover:text-foreground data-[state=open]:text-foreground ${headFlex}`}
+        >
+          {label}
+          {column.getIsSorted() === 'desc' ? (
+            <ArrowDown className="size-[0.7rem]! mt-px" />
+          ) : column.getIsSorted() === 'asc' ? (
+            <ArrowUp className="size-[0.7rem]! mt-px" />
+          ) : (
+            <ChevronsUpDown className="size-[0.7rem]! mt-px" />
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-40">
+        <DropdownMenuItem
+          onClick={() => column.getIsSorted() === 'asc' ? onResetSorting() : column.toggleSorting(false)}
+        >
+          <ArrowUp className="size-3.5!" />
+          <span className="grow">Asc</span>
+          {column.getIsSorted() === 'asc' && <Check className="size-4 opacity-100! text-primary" />}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => column.getIsSorted() === 'desc' ? onResetSorting() : column.toggleSorting(true)}
+        >
+          <ArrowDown className="size-3.5!" />
+          <span className="grow">Desc</span>
+          {column.getIsSorted() === 'desc' && <Check className="size-4 opacity-100! text-primary" />}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -189,7 +246,9 @@ function alignTextClass(align?: 'start' | 'center' | 'end'): string {
 // Cell renderer por type
 // ---------------------------------------------------------------------------
 
-function renderCellByType(value: unknown, col: ColumnConfig): React.ReactNode {
+function renderCellByType(value: unknown, col: ColumnConfig, record: AnyRecord, openModal: (mode: RowMode, record: AnyRecord) => void): React.ReactNode {
+  console.log('raw cell value:', col.key, value);
+  if (col.render) return col.render(value, record, openModal);
   switch (col.type) {
     case 'date':
       return formatDate(value);
@@ -339,6 +398,14 @@ export function GenericGrid({
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // ---------------------------------------------------------------------------
+  // Sort reset
+  // ---------------------------------------------------------------------------
+
+  const resetSorting = useCallback(() => {
+    setSorting([{ id: 'order', desc: true }]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Modal handlers
@@ -513,12 +580,7 @@ export function GenericGrid({
       cols.push({
         accessorKey: 'id',
         header: ({ column }) => (
-          <button
-            className="flex items-center gap-1 hover:text-foreground"
-            onClick={() => column.toggleSorting()}
-          >
-            ID <SortIcon sorted={column.getIsSorted()} />
-          </button>
+          <SortableColumnHeader column={column} label="ID" headFlex="" onResetSorting={resetSorting} />
         ),
         meta: { style: { width: '5%' }, skeleton: <Skeleton className="h-4 w-8" /> },
       });
@@ -536,15 +598,10 @@ export function GenericGrid({
         ...(sizePx !== undefined ? { size: sizePx } : {}),
         header: col.sortable
           ? ({ column }) => (
-              <button
-                className={`flex items-center gap-1 hover:text-foreground ${headFlex}`}
-                onClick={() => column.toggleSorting()}
-              >
-                {col.label} <SortIcon sorted={column.getIsSorted()} />
-              </button>
+              <SortableColumnHeader column={column} label={col.label} headFlex={headFlex} onResetSorting={resetSorting} />
             )
           : () => <span className={headFlex}>{col.label}</span>,
-        cell: ({ getValue }) => renderCellByType(getValue<unknown>(), col),
+        cell: ({ getValue, row }) => renderCellByType(getValue<unknown>(), col, row.original, openModal),
         meta: {
           ...(headTextCls ? { headerClassName: headTextCls } : {}),
           ...(bodyTextCls ? { cellClassName: bodyTextCls } : {}),
@@ -599,7 +656,7 @@ export function GenericGrid({
   }, [
     showDrag, showCheckbox, showId, showActive, showActions,
     showActionShow, showActionEdit, showActionDelete, showActionRestore,
-    columnConfigs, openModal,
+    columnConfigs, openModal, resetSorting,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -675,9 +732,9 @@ export function GenericGrid({
             {moduleConfig?.name ?? '...'}
           </h1>
           <div className="flex items-center gap-2">
-            {showBtnExport && (
-              <Button size="sm" variant="outline">
-                <Download className="size-4" />Export
+            {showBtnSearch && (
+              <Button size="sm" variant="outline" onClick={() => setSearchOpen(true)}>
+                <Search className="size-4" />Pesquisar
               </Button>
             )}
             {showBtnNew && (
@@ -685,30 +742,27 @@ export function GenericGrid({
                 Novo
               </Button>
             )}
-            {showBtnSearch && (
-              <Button size="sm" variant="outline" onClick={() => setSearchOpen(true)}>
-                <Search className="size-4" />Pesquisar
-              </Button>
-            )}
           </div>
         </div>
 
         {/* Grid */}
         <DataGridContainer>
-          <DataGrid table={table} recordCount={total} isLoading={isLoading} loadingMode="skeleton" tableClassNames={{ base: 'table-fixed w-full' }}>
+          <DataGrid table={table} recordCount={total} isLoading={isLoading} loadingMode="skeleton" tableClassNames={{ base: 'table-fixed w-full' }} emptyMessage={<div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground"><SearchX size={48} /><span>Nenhum registro encontrado</span></div>}>
 
             {/* Barra de ações em massa */}
             {showBulkActions && selectedCount > 0 && (
               <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30">
-                <span className="text-sm text-muted-foreground">
-                  {selectedCount} selecionado{selectedCount !== 1 ? 's' : ''}
-                </span>
-                <Button size="sm" variant="outline" onClick={() => handleBulkActive(true)}>
-                  Ativar
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleBulkActive(false)}>
-                  Desativar
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Badge variant="destructive" appearance="light" className="cursor-pointer">
+                      Ações em massa: {selectedCount} selecionado{selectedCount !== 1 ? 's' : ''}
+                    </Badge>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleBulkActive(true)}>Ativar</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBulkActive(false)}>Desativar</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
 
@@ -725,8 +779,25 @@ export function GenericGrid({
 
             {/* Paginação */}
             {showPagination && (
-              <div className="border-t px-4 py-3">
-                <DataGridPagination />
+              <div className="border-t px-4 py-3 flex items-center justify-between gap-3 w-full">
+                {showBtnExport && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline">
+                        <Download className="size-4" />Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => console.log('Export PDF')}>
+                        <FileText className="size-4" />PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => console.log('Export Excel')}>
+                        <FileSpreadsheet className="size-4" />Excel
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                <DataGridPagination hideSizes info="Exibindo {from} - {to}. Total {count} registros" className="justify-end" />
               </div>
             )}
           </DataGrid>
@@ -827,6 +898,7 @@ export function GenericGrid({
                       selected={searchDateRange}
                       onSelect={setSearchDateRange}
                       numberOfMonths={2}
+                      locale={ptBR}
                     />
                   </PopoverContent>
                 </Popover>

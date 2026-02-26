@@ -239,7 +239,7 @@ Todas protegidas por `auth:sanctum`. `{module}` = `name_url` do registro na tabe
 
 | Método | URL | Método Controller | Descrição |
 |--------|-----|-------------------|-----------|
-| GET | `api.{domínio}/v1/{tenant}/{module}` | `index` | Lista paginada com sort e per_page |
+| GET | `api.{domínio}/v1/{tenant}/{module}` | `index` | Lista paginada com sort, per_page e filtros (search_id, search_name, search_type, date_type, date_from, date_to, expiration_date_from, expiration_date_to, active, include_deleted) |
 | POST | `api.{domínio}/v1/{tenant}/{module}` | `store` | Cria registro (usa Request dinâmica) |
 | GET | `api.{domínio}/v1/{tenant}/{module}/check-slug` | `checkSlug` | Verifica disponibilidade de slug (`?slug=&exclude_id=`) |
 | GET | `api.{domínio}/v1/{tenant}/{module}/{id}` | `show` | Exibe registro (inclui soft-deleted via `withTrashed`) |
@@ -320,9 +320,9 @@ Garante retorno 401 JSON para requisições não autenticadas. Sem isso, o Larav
 
 | Model | Conexão | Observação |
 |-------|---------|-----------|
-| `Tenant` | `main` (explícita) | Sempre usa sc360_main; `$hidden = ['db_password']` |
+| `Tenant` | `main` (explícita) | Sempre usa sc360_main; `$hidden = ['db_password']`; cast `expiration_date` como `'date:Y-m-d'` |
 | `User` | default (dinâmica) | Usa a conexão setada pelo middleware |
-| `Person` | default (dinâmica) | Usa a conexão setada pelo middleware |
+| `Person` | default (dinâmica) | Usa a conexão setada pelo middleware; cast `birth_date` como `'date:Y-m-d'` |
 | `Module` | default (dinâmica) | Usa a conexão setada pelo middleware |
 | `PersonalAccessToken` | via `getConnectionName()` | Retorna `DB::getDefaultConnection()` — garante que Sanctum use a conexão correta |
 
@@ -463,7 +463,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 |------|-----------|-----------|
 | `/` | `Navigate to="/dashboard"` | Redireciona para dashboard |
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
-| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + modal de pesquisa com filtro de módulo (Validade) ✅ — **só acessível no tenant `admin`**; outros são redirecionados para `/dashboard` |
+| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + modal de pesquisa com filtro de módulo (Validade) ✅ + modal CRM de detalhes (`TenantShowModal`) ✅ — **só acessível no tenant `admin`**; outros são redirecionados para `/dashboard` |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas (placeholder) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -540,15 +540,19 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 
 - Recebe `moduleId` + `columns` (config declarativa) + `modalComponent` — tudo reutilizável
 - Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, name_url)
+- Recebe `moduleId` + `columns` (config declarativa) + `modalComponent` — tudo reutilizável
+- Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, name_url)
 - Colunas configuráveis: `key`, `label`, `sortable`, `type` (text/date/datetime/boolean/badge/currency), `alignHead`, `alignBody`, `meta` (`{ style?: CSSProperties }`) — largura via `meta: { style: { width: '12%' } }`
+- Prop `render` na `ColumnConfig` — renderer customizado: `(value, record, openModal) => ReactNode`; tem precedência sobre `type`
 - Colunas padrão: drag handle, checkbox, id, active (badge) — toggle via props `showDrag`, `showCheckbox`, `showId`, `showActive`
 - Ações por linha extraídas para `GridActions` (`frontend/src/components/grid-actions.tsx`) — show, edit, delete, restore — toggle via props `showAction*`; edit/delete ocultos em soft-deleted; restore visível apenas em soft-deleted
-- Botões topo: Novo, Pesquisar, Export — toggle via `showBtn*`
-- Paginação — exibida somente quando necessário; toggle via `showPagination`
-- Order by — clique no cabeçalho da coluna; **ordenação padrão: `order DESC`**
-- Ações em massa — ativar/desativar via checkboxes; toggle via `showBulkActions`
+- Botões topo: Novo, Pesquisar — toggle via `showBtn*`; Export movido para a barra de paginação como DropdownMenu (PDF/Excel)
+- Paginação — exibida somente quando necessário; toggle via `showPagination`; `DataGridPagination` com `hideSizes` e info customizável; contador de registros oculto quando `recordCount === 0`
+- Order by — `SortableColumnHeader`: DropdownMenu com opções Asc/Desc + reset para `order DESC` (substitui botão simples); **ordenação padrão: `order DESC`**
+- Ações em massa — DropdownMenu com Badge trigger (Ativar/Desativar); toggle via `showBulkActions`
 - Btn novo — sempre abre modal com `mode='create'`
-- Btn pesquisar — abre `Dialog` de pesquisa (implementado) ✅
+- Btn pesquisar — abre `Dialog` de pesquisa (implementado) ✅; calendar com locale `ptBR`
+- Empty state — exibe ícone `SearchX` + mensagem "Nenhum registro encontrado"
 - `fetchData` usa `URLSearchParams` — inclui `activeFilters` spread nos params da query
 
 **Props de pesquisa (`GenericGridProps`):**
@@ -655,6 +659,49 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.sc360.test
 - Primeira tab: dados principais
 - Demais tabs: submódulos
 - Módulos sem submódulos usam `children` (sem tabs)
+
+---
+
+## Fase 5.3 — Modal CRM de Detalhes (Tenants)
+
+**Componente:** `frontend/src/pages/tenants/tenant-show-modal.tsx` (`TenantShowModal`)
+
+Modal full-width (`max-w-6xl`) estilo CRM para visualização e edição de tenant. Aberto quando `mode = 'show'` ou `mode = 'edit'` via dispatcher no `TenantModal`.
+
+**Dispatcher em `TenantModal`:**
+- `toRenderMode('show')` → `'show-crm'` → abre `TenantShowModal`
+- `toRenderMode('edit')` → `'show-crm'` → abre `TenantShowModal`
+- `toRenderMode('create' | 'delete' | 'restore')` → passa direto para `GenericModal`
+
+**Estrutura do modal:**
+- **Header:** #ID + Nome + Badge Ativo/Inativo
+- **Sub-header:** Criado em / Alterado em / Deletado em (text-xs, abaixo do nome)
+- **Separator**
+- **Coluna esquerda (20%):** Validade (Badge colorido), Slug (Badge), Banco (Badge), Usuário (Badge)
+- **Coluna direita:** Tabs — Visão Geral, Documentos, Endereços, Observação, Arquivos (as 4 últimas: "Em desenvolvimento")
+
+**Tab Visão Geral:**
+- Grid 3 cols editáveis: Nome + Slug (com validação em tempo real) + Validade
+- Separator
+- 3 cards lado a lado (grid-cols-3): **Sandbox** (DatabaseZap) | **Produção** (Server) | **Log** (ScrollText)
+  - Cada card: Banco, Usuário, Senha (com toggle Eye/EyeOff)
+  - Estilo Metronic Billing Details: header `bg-accent/70`, inner `bg-background border border-input`, linhas `flex justify-between`
+
+**Footer:**
+- Esquerda: Switch + Badge Ativo/Inativo (mesmo padrão do `GenericModal`)
+- Direita: Fechar + Salvar
+
+**Comportamento:**
+- Ao salvar: `PUT /v1/admin/tenants/{id}` com `{ name, slug, expiration_date, active }`
+- Slug validation com debounce 500ms: `GET /v1/admin/tenants/check-slug?slug=&exclude_id=`
+- Salvar desabilitado enquanto `slugStatus === 'checking'` ou `'unavailable'`
+- Erros 422 exibidos abaixo dos campos correspondentes
+
+**TenantsPage — colunas com `render` customizado:**
+- `name` → botão clicável (bold, azul) que abre `TenantShowModal` via `openModal('show', record)`
+- `slug` → `<Badge variant="info" appearance="light">`
+- `db_name` → `<Badge variant="info" appearance="light">`
+- `expiration_date` → Badge colorido (success/warning/destructive) com duração legível (ex: "28/03/2026 (30 dias)")
 
 ---
 

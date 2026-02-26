@@ -3,15 +3,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GenericModal } from '@/components/generic-modal';
 import { apiGet } from '@/lib/api';
+import { TenantShowModal } from './tenant-show-modal';
 
 export interface TenantForEdit {
   id: number;
   name: string;
   slug: string;
+  db_name: string;
+  db_user: string;
+  db_password?: string;
   expiration_date: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 interface TenantModalProps {
@@ -26,6 +31,9 @@ interface TenantModalProps {
 
 type FieldErrors = Record<string, string[]>;
 type SlugStatus = 'idle' | 'checking' | 'available' | 'unavailable';
+
+// 'show-crm' = modal CRM de detalhes; os demais = GenericModal direto
+type RenderMode = 'show-crm' | 'create' | 'edit' | 'delete' | 'restore';
 
 function slugify(value: string): string {
   return value
@@ -42,8 +50,13 @@ function defaultExpiration(): string {
   return d.toISOString().split('T')[0];
 }
 
+function toRenderMode(mode: TenantModalProps['mode']): RenderMode {
+  return mode === 'edit' || mode === 'show' ? 'show-crm' : (mode as RenderMode);
+}
+
 export function TenantModal({ open, onOpenChange, mode, record, onSuccess, moduleId, size }: TenantModalProps) {
-  const isDelete = mode === 'delete';
+  // Dispatcher: 'edit' e 'show' abrem o modal CRM; os demais vão direto para GenericModal
+  const [renderMode, setRenderMode] = useState<RenderMode>(toRenderMode(mode));
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -52,9 +65,10 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
   const [expirationDate, setExpirationDate] = useState(defaultExpiration);
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  // Inicializa / reseta o formulário ao abrir
+  // Reset ao abrir: define renderMode e preenche o formulário
   useEffect(() => {
     if (open) {
+      setRenderMode(toRenderMode(mode));
       if (record) {
         setName(record.name);
         setSlug(record.slug);
@@ -69,11 +83,11 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
       setErrors({});
       setSlugStatus('idle');
     }
-  }, [open, record]);
+  }, [open, record, mode]);
 
   // Verificação de disponibilidade do slug com debounce de 500ms
   useEffect(() => {
-    if (mode !== 'create' && mode !== 'edit' && mode !== 'restore') return;
+    if (renderMode !== 'create' && renderMode !== 'edit' && renderMode !== 'restore') return;
     if (!slug) {
       setSlugStatus('idle');
       return;
@@ -96,7 +110,7 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [slug, record?.id, isDelete]);
+  }, [slug, record?.id, renderMode]);
 
   function handleNameChange(value: string) {
     setName(value);
@@ -111,82 +125,93 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
     setErrors((prev) => { const e = { ...prev }; delete e.slug; return e; });
   }
 
-  // Coleta dados do formulário — retorna null para abortar se slug inválido
   function handleGetData(): Record<string, unknown> | null {
     if (slugStatus === 'checking' || slugStatus === 'unavailable') return null;
     return { name, slug, expiration_date: expirationDate };
   }
 
-  // Recebe erros 422 da API e distribui nos campos
   function handleErrors(errs: Record<string, string[]>) {
     setErrors(errs);
   }
 
   return (
-    <GenericModal
-      open={open}
-      onOpenChange={onOpenChange}
-      mode={mode}
-      size={size}
-      moduleId={moduleId}
-      record={record}
-      onSuccess={onSuccess}
-      onGetData={handleGetData}
-      onErrors={handleErrors}
-    >
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="tenant-name">
-          Nome <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          id="tenant-name"
-          value={name}
-          onChange={(e) => handleNameChange(e.target.value)}
-          placeholder="Nome do tenant"
-        />
-        {errors.name && (
-          <p className="text-sm text-destructive">{errors.name[0]}</p>
-        )}
-      </div>
+    <>
+      {/* Modal CRM show — abre quando mode é 'edit' ou 'show' */}
+      <TenantShowModal
+        open={open && renderMode === 'show-crm'}
+        onOpenChange={(isOpen) => { if (!isOpen) onOpenChange(false); }}
+        record={record}
+        onSuccess={() => { onSuccess(); onOpenChange(false); }}
+      />
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="tenant-slug">
-          Slug <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          id="tenant-slug"
-          value={slug}
-          onChange={(e) => handleSlugChange(e.target.value)}
-          placeholder="slug-do-tenant"
-        />
-        {errors.slug && (
-          <p className="text-sm text-destructive">{errors.slug[0]}</p>
-        )}
-        {!errors.slug && slugStatus === 'checking' && (
-          <p className="text-sm text-muted-foreground">Verificando...</p>
-        )}
-        {!errors.slug && slugStatus === 'unavailable' && (
-          <p className="text-sm text-destructive">Slug já em uso</p>
-        )}
-        {!errors.slug && slugStatus === 'available' && (
-          <p className="text-sm text-green-600">Slug disponível</p>
-        )}
-      </div>
+      {/* Modal de formulário — abre para create/edit/delete/restore */}
+      {renderMode !== 'show-crm' && (
+        <GenericModal
+          open={open}
+          onOpenChange={onOpenChange}
+          mode={renderMode}
+          size={size}
+          moduleId={moduleId}
+          record={record}
+          onSuccess={onSuccess}
+          onGetData={handleGetData}
+          onErrors={handleErrors}
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="tenant-name">
+              Nome <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="tenant-name"
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="Nome do tenant"
+            />
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name[0]}</p>
+            )}
+          </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="tenant-expiration">
-          Validade <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          id="tenant-expiration"
-          type="date"
-          value={expirationDate}
-          onChange={(e) => setExpirationDate(e.target.value)}
-        />
-        {errors.expiration_date && (
-          <p className="text-sm text-destructive">{errors.expiration_date[0]}</p>
-        )}
-      </div>
-    </GenericModal>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="tenant-slug">
+              Slug <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="tenant-slug"
+              value={slug}
+              onChange={(e) => handleSlugChange(e.target.value)}
+              placeholder="slug-do-tenant"
+            />
+            {errors.slug && (
+              <p className="text-sm text-destructive">{errors.slug[0]}</p>
+            )}
+            {!errors.slug && slugStatus === 'checking' && (
+              <p className="text-sm text-muted-foreground">Verificando...</p>
+            )}
+            {!errors.slug && slugStatus === 'unavailable' && (
+              <p className="text-sm text-destructive">Slug já em uso</p>
+            )}
+            {!errors.slug && slugStatus === 'available' && (
+              <p className="text-sm text-green-600">Slug disponível</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="tenant-expiration">
+              Validade <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="tenant-expiration"
+              type="date"
+              value={expirationDate}
+              onChange={(e) => setExpirationDate(e.target.value)}
+            />
+            {errors.expiration_date && (
+              <p className="text-sm text-destructive">{errors.expiration_date[0]}</p>
+            )}
+          </div>
+        </GenericModal>
+      )}
+    </>
   );
 }

@@ -12,6 +12,7 @@ interface DataGridPaginationProps {
   sizesLabel?: string;
   sizesDescription?: string;
   sizesSkeleton?: ReactNode;
+  hideSizes?: boolean;
   more?: boolean;
   moreLimit?: number;
   info?: string;
@@ -128,40 +129,44 @@ function DataGridPagination(props: DataGridPaginationProps) {
         mergedProps?.className,
       )}
     >
-      <div className="flex flex-wrap items-center space-x-2.5 pb-2.5 sm:pb-0 order-2 sm:order-1">
-        {isLoading ? (
-          mergedProps?.sizesSkeleton
-        ) : (
-          <>
-            <div className="text-sm text-muted-foreground">Linhas por página</div>
-            <Select
-              value={`${pageSize}`}
-              indicatorPosition="right"
-              onValueChange={(value) => {
-                const newPageSize = Number(value);
-                table.setPageSize(newPageSize);
-              }}
-            >
-              <SelectTrigger className="w-fit" size="sm">
-                <SelectValue placeholder={`${pageSize}`} />
-              </SelectTrigger>
-              <SelectContent side="top" className="min-w-[50px]">
-                {mergedProps?.sizes?.map((size: number) => (
-                  <SelectItem key={size} value={`${size}`}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        )}
-      </div>
+      {!mergedProps?.hideSizes && (
+        <div className="flex flex-wrap items-center space-x-2.5 pb-2.5 sm:pb-0 order-2 sm:order-1">
+          {isLoading ? (
+            mergedProps?.sizesSkeleton
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground">Linhas por página</div>
+              <Select
+                value={`${pageSize}`}
+                indicatorPosition="right"
+                onValueChange={(value) => {
+                  const newPageSize = Number(value);
+                  table.setPageSize(newPageSize);
+                }}
+              >
+                <SelectTrigger className="w-fit" size="sm">
+                  <SelectValue placeholder={`${pageSize}`} />
+                </SelectTrigger>
+                <SelectContent side="top" className="min-w-[50px]">
+                  {mergedProps?.sizes?.map((size: number) => (
+                    <SelectItem key={size} value={`${size}`}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row justify-center sm:justify-end items-center gap-2.5 pt-2.5 sm:pt-0 order-1 sm:order-2">
         {isLoading ? (
           mergedProps?.infoSkeleton
         ) : (
           <>
-            <div className="text-sm text-muted-foreground text-nowrap order-2 sm:order-1">{paginationInfo}</div>
+            {recordCount > 0 && (
+              <div className="text-sm text-muted-foreground text-nowrap order-2 sm:order-1">{paginationInfo}</div>
+            )}
             {pageCount > 1 && (
               <div className="flex items-center space-x-1 order-1 sm:order-2">
                 <Button

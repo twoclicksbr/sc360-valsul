@@ -49,7 +49,12 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan tinker --database=main 2)",
       "Bash(1:*)",
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan tinker 2)",
-      "Bash(npm run dev)"
+      "Bash(npm run dev)",
+      "Bash(netstat -ano)",
+      "Bash(xargs grep -l \"Customer Details\\\\|CustomerDetails\\\\|customer-details\")",
+      "Bash(xargs grep -l \"Dialog\\\\|Sheet\\\\|Modal\")",
+      "Bash(xargs grep -l \"customer\\\\|Client\\\\|client\")",
+      "Bash(grep -l \"Customer Details\" /c/Herd/themeforest/metronic/demo34/apps/customers/*.html)"
     ]
   }
 }

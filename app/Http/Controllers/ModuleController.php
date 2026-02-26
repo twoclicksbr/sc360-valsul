@@ -34,13 +34,53 @@ class ModuleController extends Controller
         $mod        = $this->resolveModule($request->route('module'));
         $modelClass = $this->modelClass($mod);
         $instance   = new $modelClass;
+        $fillable   = $instance->getFillable();
 
-        $query = $modelClass::query();
+        // include_deleted deve ser aplicado antes dos demais filtros
+        $query = $request->boolean('include_deleted')
+            ? $modelClass::withTrashed()
+            : $modelClass::query();
+
+        // Filtro por ID
+        if ($searchId = $request->input('search_id')) {
+            $query->where('id', (int) $searchId);
+        }
+
+        // Filtro por nome
+        if ($searchName = $request->input('search_name')) {
+            $searchType = $request->input('search_type', 'contains');
+            match ($searchType) {
+                'starts' => $query->whereRaw('name ILIKE ?', [$searchName . '%']),
+                'exact'  => $query->where('name', $searchName),
+                default  => $query->whereRaw('name ILIKE ?', ['%' . $searchName . '%']),
+            };
+        }
+
+        // Filtro por data (date_type + date_from + date_to)
+        if ($dateFrom = $request->input('date_from')) {
+            $dateType     = $request->input('date_type', 'created_at');
+            $allowedDates = ['created_at', 'updated_at', 'deleted_at'];
+            if (in_array($dateType, $allowedDates, true)) {
+                $dateTo = $request->input('date_to', $dateFrom);
+                $query->whereBetween($dateType, [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59']);
+            }
+        }
+
+        // Filtro por expiration_date (apenas em módulos que possuem essa coluna)
+        if (in_array('expiration_date', $fillable, true) && ($expirationFrom = $request->input('expiration_date_from'))) {
+            $expirationTo = $request->input('expiration_date_to', $expirationFrom);
+            $query->whereBetween('expiration_date', [$expirationFrom, $expirationTo]);
+        }
+
+        // Filtro por active
+        if ($request->has('active')) {
+            $query->where('active', $request->boolean('active'));
+        }
 
         // Ordenação
         $sort      = $request->input('sort', 'id');
         $direction = $request->input('direction', 'asc') === 'desc' ? 'desc' : 'asc';
-        $allowed   = array_merge(['id', 'created_at', 'updated_at'], $instance->getFillable());
+        $allowed   = array_merge(['id', 'created_at', 'updated_at', 'deleted_at'], $fillable);
 
         $query->orderBy(in_array($sort, $allowed, true) ? $sort : 'id', $direction);
 
