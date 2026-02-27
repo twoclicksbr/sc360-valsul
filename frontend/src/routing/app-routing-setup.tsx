@@ -6,6 +6,7 @@ import { TenantsPage } from '@/pages/tenants/page';
 import { PlatformsPage } from '@/pages/platforms/page';
 import { getTenantSlug } from '@/lib/tenant';
 import { PessoasPage } from '@/pages/pessoas/page';
+import { ModulesPage } from '@/pages/modules';
 import { ProdutosPage } from '@/pages/produtos/page';
 import { ComprasPage } from '@/pages/compras/page';
 import { VendasPage } from '@/pages/vendas/page';
@@ -401,6 +402,7 @@ export function AppRoutingSetup() {
             ? <Route path="/platforms" element={<PlatformsPage />} />
             : <Route path="/platforms" element={<Navigate to="/dashboard" />} />
           }
+          <Route path="/modules" element={<ModulesPage />} />
           <Route path="/pessoas" element={<PessoasPage />} />
           <Route path="/produtos" element={<ProdutosPage />} />
           <Route path="/compras" element={<ComprasPage />} />

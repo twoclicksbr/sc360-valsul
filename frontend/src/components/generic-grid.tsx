@@ -65,7 +65,7 @@ type RowMode = 'create' | 'edit' | 'show' | 'delete' | 'restore';
 interface ModuleConfig {
   id: number;
   name: string;
-  name_url: string;
+  slug: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -385,7 +385,7 @@ export function GenericGrid({
         ...activeFilters,
       });
       const res = await apiGet<{ data: AnyRecord[]; meta: { total: number } }>(
-        `/v1/${tenant}/${moduleConfig.name_url}?${params.toString()}`,
+        `/v1/${tenant}/${moduleConfig.slug}?${params.toString()}`,
       );
       setData(res.data);
       setTotal(res.meta.total);
@@ -451,7 +451,7 @@ export function GenericGrid({
       try {
         await Promise.all(
           changedItems.map((item) =>
-            apiPut<unknown>(`/v1/${tenant}/${moduleConfig.name_url}/${item.id as number}`, item),
+            apiPut<unknown>(`/v1/${tenant}/${moduleConfig.slug}/${item.id as number}`, item),
           ),
         );
       } catch (err) {
@@ -474,7 +474,7 @@ export function GenericGrid({
       try {
         await Promise.all(
           selectedItems.map((item) =>
-            apiPut<unknown>(`/v1/${tenant}/${moduleConfig.name_url}/${item.id as number}`, {
+            apiPut<unknown>(`/v1/${tenant}/${moduleConfig.slug}/${item.id as number}`, {
               ...item,
               active: activeValue,
             }),

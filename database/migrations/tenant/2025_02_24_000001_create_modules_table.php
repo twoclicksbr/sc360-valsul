@@ -10,14 +10,15 @@ return new class extends Migration
     {
         Schema::create('modules', function (Blueprint $table) {
             $table->id();
+            $table->enum('owner_level', ['master', 'platform', 'tenant'])->default('tenant');
+            $table->unsignedBigInteger('owner_id')->default(0);
+            $table->string('slug')->unique();
             $table->string('name');
-            $table->enum('type', ['modulo', 'submodulo']);
-            $table->string('name_table')->unique();
-            $table->string('name_url')->unique();
+            $table->string('icon')->nullable();
+            $table->enum('type', ['module', 'submodule', 'pivot'])->default('module');
             $table->string('model')->nullable();
             $table->string('request')->nullable();
-            $table->string('controller_front')->nullable();
-            $table->string('controller_back')->nullable();
+            $table->enum('size_modal', ['p', 'm', 'g'])->default('m');
             $table->text('description_index')->nullable();
             $table->text('description_show')->nullable();
             $table->text('description_store')->nullable();

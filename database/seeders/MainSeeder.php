@@ -10,54 +10,58 @@ class MainSeeder extends Seeder
     public function run(): void
     {
         Module::on('main')->firstOrCreate(
-            ['name_url' => 'tenants'],
+            ['slug' => 'tenants'],
             [
-                'name'       => 'Empresas',
-                'type'       => 'modulo',
-                'name_table' => 'tenants',
-                'model'      => 'Tenant',
-                'request'    => 'TenantRequest',
-                'order'      => 1,
-                'active'     => true,
+                'name'        => 'Empresas',
+                'type'        => 'module',
+                'model'       => 'Tenant',
+                'request'     => 'TenantRequest',
+                'owner_level' => 'master',
+                'owner_id'    => 0,
+                'order'       => 1,
+                'active'      => true,
             ]
         );
 
         Module::on('main')->firstOrCreate(
-            ['name_url' => 'modules'],
+            ['slug' => 'modules'],
             [
-                'name'       => 'Modules',
-                'type'       => 'modulo',
-                'name_table' => 'modules',
-                'model'      => 'Module',
-                'request'    => 'ModuleRequest',
-                'order'      => 2,
-                'active'     => true,
+                'name'        => 'Módulos',
+                'type'        => 'module',
+                'model'       => 'Module',
+                'request'     => 'ModuleRequest',
+                'owner_level' => 'master',
+                'owner_id'    => 0,
+                'order'       => 2,
+                'active'      => true,
             ]
         );
 
         Module::on('main')->firstOrCreate(
-            ['name_url' => 'platforms'],
+            ['slug' => 'platforms'],
             [
-                'name'       => 'Plataformas',
-                'type'       => 'modulo',
-                'name_table' => 'platforms',
-                'model'      => 'Platform',
-                'request'    => 'PlatformRequest',
-                'order'      => 3,
-                'active'     => true,
+                'name'        => 'Plataformas',
+                'type'        => 'module',
+                'model'       => 'Platform',
+                'request'     => 'PlatformRequest',
+                'owner_level' => 'master',
+                'owner_id'    => 0,
+                'order'       => 3,
+                'active'      => true,
             ]
         );
 
         Module::on('main')->firstOrCreate(
-            ['name_url' => 'pessoas'],
+            ['slug' => 'pessoas'],
             [
-                'name'       => 'Pessoas',
-                'type'       => 'modulo',
-                'name_table' => 'people',
-                'model'      => 'Person',
-                'request'    => 'PersonRequest',
-                'order'      => 4,
-                'active'     => true,
+                'name'        => 'Pessoas',
+                'type'        => 'module',
+                'model'       => 'Person',
+                'request'     => 'PersonRequest',
+                'owner_level' => 'master',
+                'owner_id'    => 0,
+                'order'       => 4,
+                'active'      => true,
             ]
         );
     }

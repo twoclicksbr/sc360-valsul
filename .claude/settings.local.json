@@ -62,7 +62,17 @@
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan migrate:fresh --database=main_prod --path=database/migrations/main)",
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan migrate --database=main_log --path=database/migrations/log)",
       "Bash(\"/c/Users/alexa/.config/herd/bin/php84/php.exe\" artisan migrate:fresh --database=main_log --path=database/migrations/log)",
-      "Bash(PGPASSWORD=Millena2012@ \"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h 127.0.0.1 -d tc_main -c \"CREATE SCHEMA IF NOT EXISTS sand; CREATE SCHEMA IF NOT EXISTS prod; CREATE SCHEMA IF NOT EXISTS log;\")"
+      "Bash(PGPASSWORD=Millena2012@ \"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h 127.0.0.1 -d tc_main -c \"CREATE SCHEMA IF NOT EXISTS sand; CREATE SCHEMA IF NOT EXISTS prod; CREATE SCHEMA IF NOT EXISTS log;\")",
+      "Bash(xargs grep -l \"icon\" -i)",
+      "Bash(xargs grep -l \"picker\\\\|Picker\")",
+      "Bash(find /c/Herd/smartclick360* -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\))",
+      "Bash(xargs grep -l \"icon.*select\\\\|icon.*picker\" -i)",
+      "Bash(xargs -I {} find {} -type f -name \"*.tsx\")",
+      "Bash(xargs grep -l \"lucide\\\\|icon\" -i)",
+      "Bash(git -C /c/Herd/smartclick360 log --oneline -10)",
+      "Bash(git -C /c/Herd/smartclick360 show HEAD:resources/js/)",
+      "Bash(git -C /c/Herd/smartclick360 ls-tree HEAD --name-only)",
+      "Bash(git -C /c/Herd/smartclick360 show 94eaff6 --stat)"
     ]
   }
 }

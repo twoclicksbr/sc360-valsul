@@ -10,7 +10,7 @@ class ModuleController extends Controller
 {
     private function resolveModule(string $nameUrl): Module
     {
-        $module = Module::where('name_url', $nameUrl)->first();
+        $module = Module::where('slug', $nameUrl)->first();
 
         if (! $module) {
             abort(404, "Módulo '{$nameUrl}' não encontrado.");

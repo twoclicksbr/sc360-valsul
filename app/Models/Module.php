@@ -10,14 +10,15 @@ class Module extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'owner_level',
+        'owner_id',
+        'slug',
         'name',
+        'icon',
         'type',
-        'name_table',
-        'name_url',
         'model',
         'request',
-        'controller_front',
-        'controller_back',
+        'size_modal',
         'description_index',
         'description_show',
         'description_store',
@@ -32,6 +33,7 @@ class Module extends Model
     ];
 
     protected $casts = [
+        'owner_id'      => 'integer',
         'type'          => 'string',
         'after_store'   => 'string',
         'after_update'  => 'string',

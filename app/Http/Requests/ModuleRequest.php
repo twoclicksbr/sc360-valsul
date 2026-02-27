@@ -17,28 +17,22 @@ class ModuleRequest extends FormRequest
         $id = $this->route('id');
 
         return [
-            'name' => ['required', 'string', 'max:255'],
-
-            'type' => ['required', Rule::in(['modulo', 'submodulo'])],
-
-            'name_table' => [
+            'slug' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('modules', 'name_table')->ignore($id)->whereNull('deleted_at'),
+                Rule::unique('modules', 'slug')->ignore($id)->whereNull('deleted_at'),
             ],
 
-            'name_url' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('modules', 'name_url')->ignore($id)->whereNull('deleted_at'),
-            ],
+            'name'        => ['required', 'string', 'max:255'],
+            'owner_level' => ['required', Rule::in(['master', 'platform', 'tenant'])],
+            'owner_id'    => ['required', 'integer', 'min:0'],
+            'type'        => ['required', Rule::in(['module', 'submodule', 'pivot'])],
 
-            'model'            => ['nullable', 'string', 'max:255'],
-            'request'          => ['nullable', 'string', 'max:255'],
-            'controller_front' => ['nullable', 'string', 'max:255'],
-            'controller_back'  => ['nullable', 'string', 'max:255'],
+            'icon'       => ['nullable', 'string', 'max:255'],
+            'model'      => ['nullable', 'string', 'max:255'],
+            'request'    => ['nullable', 'string', 'max:255'],
+            'size_modal' => ['nullable', Rule::in(['p', 'm', 'g'])],
 
             'description_index'   => ['nullable', 'string'],
             'description_show'    => ['nullable', 'string'],

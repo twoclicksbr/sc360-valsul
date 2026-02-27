@@ -3,6 +3,7 @@ import {
   ArrowUpCircle,
   BarChart3,
   Building2,
+  LayoutGrid,
   Layers,
   Package,
   Settings,
@@ -37,6 +38,7 @@ export function SidebarMenu() {
   const items: Item[] = [
     ...(isAdmin && !selectedPlatform ? [{ icon: Layers,    path: '/platforms', title: 'Plataformas' }] : []),
     ...(isAdmin ? [{ icon: Building2, path: '/tenants',   title: 'Empresas' }] : []),
+    { icon: LayoutGrid,       path: '/modules',      title: 'Módulos' },
     { icon: Users,            path: '/pessoas',      title: 'Pessoas' },
     { icon: Package,          path: '/produtos',     title: 'Produtos' },
     { icon: ShoppingCart,     path: '/compras',      title: 'Compras' },

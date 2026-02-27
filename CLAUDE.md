@@ -191,9 +191,14 @@ id → campos específicos → order (default 1) → active (default true) → t
 
 | Tabela | Campos |
 |--------|--------|
-| `modules` | name, type (módulo/submódulo), name_table (unique), name_url (unique), model, request, controller_front, controller_back, description_index, description_show, description_store, description_update, description_delete, description_restore, after_store, after_update, after_restore, active, order |
+| `modules` | owner_level (enum: master/platform/tenant, default tenant), owner_id (default 0), slug (unique), name, icon (nullable), type (enum: module/submodule/pivot, default module), model, request, size_modal (enum: p/m/g, default m), description_index, description_show, description_store, description_update, description_delete, description_restore, after_store, after_update, after_restore, active, order |
 
 Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
+- `owner_level` = nível de propriedade do módulo (master = TwoClicks, platform = plataforma, tenant = cliente)
+- `owner_id` = ID do owner (0 = todos / sem dono específico)
+- `slug` = identificador único usado na URL (substitui `name_url` e `name_table`)
+- `icon` = nome do ícone Lucide (ex: `Users`, `Package`) — renderizado dinamicamente
+- `size_modal` = tamanho padrão do modal CRUD (p/m/g)
 
 #### Tabelas de Tipo (referência)
 
@@ -244,7 +249,7 @@ Resposta do login:
 
 ### Rotas CRUD Genéricas (ModuleController)
 
-Todas protegidas por `auth:sanctum`. `{module}` = `name_url` do registro na tabela `modules`.
+Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `modules`.
 
 | Método | URL | Método Controller | Descrição |
 |--------|-----|-------------------|-----------|
@@ -287,7 +292,7 @@ Uma única `ModuleController` resolve o CRUD de qualquer módulo. Ela busca as c
 
 #### Rota Genérica
 
-`{module}` corresponde ao `name_url` da tabela `modules`. Uma única rota atende módulos e submódulos.
+`{module}` corresponde ao `slug` da tabela `modules`. Uma única rota atende módulos e submódulos.
 
 Padrão de URL: `api.{domínio}/v1/{tenant}/{module}` e `api.{domínio}/v1/{tenant}/{module}/{id}`
 
@@ -299,11 +304,11 @@ O prefixo de path é `/v1/{tenant}` — sem prefixo `/api`. As rotas não estão
 
 #### Configuração de Módulo
 
-Os campos `model`, `request`, `controller_front` e `controller_back` são combobox que fazem scan das respectivas pastas e listam os arquivos disponíveis.
+Os campos `model` e `request` identificam as classes PHP usadas pelo `ModuleController` para resolver dinamicamente o CRUD.
 
 **Para criar um novo módulo:**
-1. Criar migration, model, request, controller
-2. Cadastrar o módulo na tela de modules selecionando os arquivos nos combos
+1. Criar migration, model, request
+2. Cadastrar o módulo na tela de modules (slug, nome, model, request, size_modal, etc.)
 
 Sem mexer em rotas, sem criar controller de CRUD. Tudo dinâmico.
 
@@ -396,8 +401,9 @@ Registrados em `AppServiceProvider::boot()`.
 
 | Seeder | O que faz |
 |--------|-----------|
-| `DatabaseSeeder` | Chama MainSeeder + AdminSeeder |
-| `MainSeeder` | Cria módulo 'tenants' (id=1), 'modules' (id=2) e 'platforms' (id=3) em tc_main via `Module::on('main')->firstOrCreate`. **Não cria tenant/platform** — provisionamento é feito pelos Observers ao salvar. |
+| `DatabaseSeeder` | Chama MainSeeder + TenantSeeder + AdminSeeder |
+| `MainSeeder` | Cria módulos em tc_main via `Module::on('main')->firstOrCreate` usando `slug` como chave: `tenants` (id=1, owner_level=master), `modules` (id=2, owner_level=master), `platforms` (id=3, owner_level=master), `pessoas` (id=4, owner_level=master). **Não cria tenant/platform** — provisionamento é feito pelos Observers ao salvar. |
+| `TenantSeeder` | Cria módulos na conexão default (tenant) via `Module::firstOrCreate`: `modules` (id=1), `pessoas` (id=2), `users` (id=3) — todos com `owner_level=master`. |
 | `AdminSeeder` | Cria person 'Admin' + user admin@admin.com na conexão default atual (main ou tenant) |
 
 **Comandos para rodar:**
@@ -492,6 +498,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
 | `/platforms` | `PlatformsPage` | Grid de platforms — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`PlatformShowModal`, max-w-6xl) ✅ — **só acessível no tenant `admin`** |
 | `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`TenantShowModal`, max-w-6xl) ✅ — **só acessível no tenant `admin`** |
+| `/modules` | `ModulesPage` | Gestão de módulos ✅ — GenericGrid (moduleId=2) + ModuleModal (create/delete/restore) + ModuleShowModal (show/edit, CRM max-w-6xl) — colunas: name, slug, type, owner_level |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas ✅ — GenericGrid com filtro de aniversário + PersonModal (create/delete/restore) + PersonShowModal (show/edit, CRM max-w-4xl) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -525,14 +532,15 @@ O menu horizontal do Demo3 tem um item fixo "Dashboard" como primeiro item (hard
 
 **Dropdown Dashboard:**
 - Geral → `/dashboard`
-- Plataformas → `/platforms` — **visível apenas quando `getUrlTenantSlug() === 'admin'`**
+- Plataformas → `/platforms` — **visível apenas quando `getUrlTenantSlug() === 'admin'` e sem plataforma selecionada**
 - Tenants → `/tenants` — **visível apenas quando `getUrlTenantSlug() === 'admin'`**
+- Módulos → `/modules`
 - Pessoas → `/pessoas`
 - Produtos → `/produtos`
 - Comercial → `/comercial`
 - Financeiro → `/financeiro`
 
-**Sidebar:** itens "Plataformas" (ícone `Layers`) e "Tenants" (ícone `Building2`) visíveis apenas quando `getUrlTenantSlug() === 'admin'`.
+**Sidebar:** itens "Plataformas" (ícone `Layers`) e "Tenants" (ícone `Building2`) visíveis apenas quando `getUrlTenantSlug() === 'admin'`; "Módulos" (ícone `LayoutGrid`) sempre visível.
 
 ### API Client (`frontend/src/lib/api.ts`)
 
@@ -580,6 +588,7 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 | **Fase 5.1** | Tela show/create/edit/delete/restore (página inteira) — não utilizada; projeto usa modal |
 | **Fase 5.2** | Tela show/create/edit/delete/restore (modal) — ✅ `GenericModal` implementado com todos os 5 modos (create/edit/show/delete/restore) |
 | **Fase 6** | Tela people ✅ — `PessoasPage` + `PersonModal` + `PersonShowModal` implementados |
+| **Fase 6.1** | Tela modules ✅ — `ModulesPage` + `ModuleModal` + `ModuleShowModal` implementados |
 | **Fase 7** | Criar migration, model, request, controller das tabelas restantes (type_documents, type_contacts, type_addresses, notes, files, documents, contacts, addresses) |
 
 ---
@@ -589,9 +598,7 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 **Componente genérico:** `frontend/src/components/generic-grid.tsx` (`GenericGrid`)
 
 - Recebe `moduleId` + `columns` (config declarativa) + `modalComponent` — tudo reutilizável
-- Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, name_url)
-- Recebe `moduleId` + `columns` (config declarativa) + `modalComponent` — tudo reutilizável
-- Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, name_url)
+- Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, slug)
 - Colunas configuráveis: `key`, `label`, `sortable`, `type` (text/date/datetime/boolean/badge/currency), `alignHead`, `alignBody`, `meta` (`{ style?: CSSProperties }`) — largura via `meta: { style: { width: '12%' } }`
 - Prop `render` na `ColumnConfig` — renderer customizado: `(value, record, openModal) => ReactNode`; tem precedência sobre `type`
 - Colunas padrão: drag handle, checkbox, id, active (badge com label "Status" no thead) — toggle via props `showDrag`, `showCheckbox`, `showId`, `showActive`
@@ -680,7 +687,7 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 **Modos implementados:** `create`, `edit`, `show`, `delete`, `restore` ✅ — todos os 5 modos
 
 **Props da interface `GenericModalProps`:**
-- `moduleId` — busca `name_url` + `after_*` via `GET /v1/{tenant}/modules/{id}`
+- `moduleId` — busca `slug` + `after_*` via `GET /v1/{tenant}/modules/{id}`
 - `record` — registro atual (qualquer módulo)
 - `onGetData()` — coleta dados do formulário externo; retornar `null` aborta o save
 - `onErrors(errors)` — repassa erros 422 ao pai para exibir nos campos
@@ -753,6 +760,28 @@ Mesma estrutura do `TenantShowModal`. Aberto quando `mode = 'show'` ou `mode = '
 - `name` → botão clicável abre `PlatformShowModal`
 - `slug`, `db_name` → `<Badge variant="info" appearance="light">`
 - `expiration_date` → Badge colorido com duração legível
+
+### ModuleShowModal (`module-show-modal.tsx`) — max-w-6xl, h-85vh
+
+Modal CRM para módulos. Aberto quando `mode = 'show'` ou `mode = 'edit'` via `ModuleModal`.
+
+**Estrutura:**
+- Header: #ID + Nome + Badge Ativo/Inativo + badges de tipo e proprietário (direita) + timestamps
+- Tabs: Dados, Campos, Grid, Form, Restrições, Seeds (5 últimas: "Em desenvolvimento")
+
+**Tab Dados — grade 12 colunas:**
+- Linha 1: Ícone (span 1, botão com preview dinâmico do ícone Lucide) + Nome (span 5) + Slug (span 2, validação real-time) + Tipo (span 2) + Proprietário (span 2)
+- Linha 2: Model (span 3) + Request (span 3)
+- Linha 3: Tamanho Modal (span 2) + Após Criar (span 2) + Após Editar (span 2) + Após Restaurar (span 2)
+- Linhas 4-5: 6 Textareas de description (index, show, store, update, delete, restore) — 4 colunas cada
+
+**Ícone dinâmico:** `import * as LucideIcons` — converte o valor do campo `icon` em componente React; fallback para `Puzzle` se ícone não encontrado.
+
+**ModulesPage — colunas `render`:**
+- `name` → botão clicável abre `ModuleShowModal`
+- `slug` → `<Badge variant="info" appearance="light">`
+- `type` → Badge (module=primary, submodule=secondary, pivot=warning)
+- `owner_level` → Badge (master=primary, platform=secondary, tenant=default)
 
 ### PersonShowModal (`person-show-modal.tsx`) — max-w-4xl
 

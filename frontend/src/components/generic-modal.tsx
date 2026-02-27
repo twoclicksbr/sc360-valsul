@@ -26,7 +26,7 @@ type AfterAction = 'index' | 'show' | 'create' | 'edit';
 interface ModuleConfig {
   id: number;
   name: string;
-  name_url: string;
+  slug: string;
   after_store: AfterAction | null;
   after_update: AfterAction | null;
   after_restore: AfterAction | null;
@@ -178,7 +178,7 @@ export function GenericModal({
     setSaving(true);
     try {
       const body   = { ...formData, active };
-      const baseUrl = `/v1/${tenant}/${moduleConfig.name_url}`;
+      const baseUrl = `/v1/${tenant}/${moduleConfig.slug}`;
       const id      = internalRecord?.id as number | undefined;
 
       let path:   string;
@@ -250,7 +250,7 @@ export function GenericModal({
     setSaving(true);
     try {
       const res = await apiFetch(
-        `/v1/${tenant}/${moduleConfig.name_url}/${internalRecord.id as number}`,
+        `/v1/${tenant}/${moduleConfig.slug}/${internalRecord.id as number}`,
         { method: 'DELETE' },
       );
       if (res.ok) {

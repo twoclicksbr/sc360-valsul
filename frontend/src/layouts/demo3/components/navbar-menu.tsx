@@ -43,6 +43,7 @@ export function NavbarMenu() {
     { title: 'Geral', path: '/dashboard' },
     ...(isAdmin && !selectedPlatform ? [{ title: 'Plataformas', path: '/platforms' }] : []),
     ...(isAdmin ? [{ title: 'Empresas', path: '/tenants' }] : []),
+    { title: 'Módulos', path: '/modules' },
     { title: 'Pessoas', path: '/pessoas' },
     { title: 'Produtos', path: '/produtos' },
     { title: 'Comercial', path: '/comercial' },
