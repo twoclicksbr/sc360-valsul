@@ -1,9 +1,13 @@
-import React, { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Fragment, type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type Cell,
   type Column,
   type ColumnDef,
+  flexRender,
   getCoreRowModel,
+  type HeaderGroup,
   type PaginationState,
+  type Row,
   type RowSelectionState,
   type SortingState,
   useReactTable,
@@ -33,9 +37,22 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DataGrid, DataGridContainer } from '@/components/ui/data-grid';
+import { DataGrid, DataGridContainer, useDataGrid } from '@/components/ui/data-grid';
 import { DataGridPagination } from '@/components/ui/data-grid-pagination';
-import { DataGridTable } from '@/components/ui/data-grid-table';
+import {
+  DataGridTable,
+  DataGridTableBase,
+  DataGridTableBody,
+  DataGridTableBodyRow,
+  DataGridTableBodyRowCell,
+  DataGridTableBodyRowSkeleton,
+  DataGridTableBodyRowSkeletonCell,
+  DataGridTableEmpty,
+  DataGridTableHead,
+  DataGridTableHeadRow,
+  DataGridTableHeadRowCell,
+  DataGridTableRowSpacer,
+} from '@/components/ui/data-grid-table';
 import { DataGridTableDndRows } from '@/components/ui/data-grid-table-dnd-rows';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -122,6 +139,11 @@ export interface GenericGridProps {
   onSearch?: (baseFilters: Record<string, string>) => Record<string, string>;
   hasModuleFilters?: boolean;
   icon?: React.ComponentType<{ className?: string }>;
+
+  // Agrupamento visual de linhas
+  groupBy?: string;
+  groupByLabels?: Record<string, string>;
+  groupByOrder?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +302,96 @@ function renderCellByType(value: unknown, col: ColumnConfig, record: AnyRecord, 
 }
 
 // ---------------------------------------------------------------------------
+// Grouped table (static, sem DnD) — renderizado quando groupBy está definido
+// ---------------------------------------------------------------------------
+
+function GroupedTable({
+  groupBy,
+  groupByLabels,
+  groupByOrder,
+}: {
+  groupBy: string;
+  groupByLabels: Record<string, string>;
+  groupByOrder?: string[];
+}) {
+  const { table, isLoading, props } = useDataGrid();
+  const pagination = table.getState().pagination;
+  const rows = table.getRowModel().rows as Row<AnyRecord>[];
+  const totalCols = table.getVisibleFlatColumns().length;
+
+  const groups = useMemo(() => {
+    const map = new Map<string, Row<AnyRecord>[]>();
+    for (const row of rows) {
+      const key = String((row.original as AnyRecord)[groupBy] ?? '');
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(row);
+    }
+    const order = groupByOrder ?? Array.from(map.keys());
+    const sorted = order.filter((k) => map.has(k)).map((k) => ({ key: k, rows: map.get(k)! }));
+    const extra = Array.from(map.keys())
+      .filter((k) => !order.includes(k))
+      .map((k) => ({ key: k, rows: map.get(k)! }));
+    return [...sorted, ...extra];
+  }, [rows, groupBy, groupByOrder]);
+
+  return (
+    <DataGridTableBase>
+      <DataGridTableHead>
+        {table.getHeaderGroups().map((headerGroup: HeaderGroup<AnyRecord>, index) => (
+          <DataGridTableHeadRow headerGroup={headerGroup} key={index}>
+            {headerGroup.headers.map((header, i) => (
+              <DataGridTableHeadRowCell header={header} key={i}>
+                {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+              </DataGridTableHeadRowCell>
+            ))}
+          </DataGridTableHeadRow>
+        ))}
+      </DataGridTableHead>
+
+      {(props.tableLayout?.stripped || !props.tableLayout?.rowBorder) && <DataGridTableRowSpacer />}
+
+      <DataGridTableBody>
+        {props.loadingMode === 'skeleton' && isLoading && pagination?.pageSize ? (
+          Array.from({ length: pagination.pageSize }).map((_, rowIndex) => (
+            <DataGridTableBodyRowSkeleton key={rowIndex}>
+              {table.getVisibleFlatColumns().map((column, colIndex) => (
+                <DataGridTableBodyRowSkeletonCell column={column} key={colIndex}>
+                  {column.columnDef.meta?.skeleton}
+                </DataGridTableBodyRowSkeletonCell>
+              ))}
+            </DataGridTableBodyRowSkeleton>
+          ))
+        ) : rows.length ? (
+          groups.map(({ key, rows: groupRows }) => (
+            <Fragment key={`group-${key}`}>
+              <tr>
+                <td
+                  colSpan={totalCols}
+                  className="bg-muted/60 px-4 py-1.5 font-semibold text-xs text-muted-foreground uppercase tracking-wide border-y border-border"
+                >
+                  {groupByLabels[key] ?? key}
+                </td>
+              </tr>
+              {groupRows.map((row) => (
+                <DataGridTableBodyRow row={row} key={row.id}>
+                  {row.getVisibleCells().map((cell: Cell<AnyRecord, unknown>, colIndex) => (
+                    <DataGridTableBodyRowCell cell={cell} key={colIndex}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </DataGridTableBodyRowCell>
+                  ))}
+                </DataGridTableBodyRow>
+              ))}
+            </Fragment>
+          ))
+        ) : (
+          <DataGridTableEmpty />
+        )}
+      </DataGridTableBody>
+    </DataGridTableBase>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -308,8 +420,12 @@ export function GenericGrid({
   onSearch,
   hasModuleFilters = false,
   icon: Icon,
+  groupBy,
+  groupByLabels,
+  groupByOrder,
 }: GenericGridProps) {
   const tenant = getTenantSlug();
+  const effectiveShowDrag = showDrag && !groupBy;
   const onDataLoadRef = useRef(onDataLoad);
   onDataLoadRef.current = onDataLoad;
   const onSearchRef = useRef(onSearch);
@@ -540,7 +656,7 @@ export function GenericGrid({
     const cols: ColumnDef<AnyRecord>[] = [];
 
     // — drag handle
-    if (showDrag) {
+    if (effectiveShowDrag) {
       cols.push({
         id: 'drag',
         header: () => null,
@@ -656,7 +772,7 @@ export function GenericGrid({
 
     return cols;
   }, [
-    showDrag, showCheckbox, showId, showActive, showActions,
+    effectiveShowDrag, showCheckbox, showId, showActive, showActions,
     showActionShow, showActionEdit, showActionDelete, showActionRestore,
     columnConfigs, openModal, resetSorting,
   ]);
@@ -770,11 +886,17 @@ export function GenericGrid({
             )}
 
             {/* Tabela */}
-            {showDrag ? (
+            {effectiveShowDrag ? (
               <DataGridTableDndRows
                 handleDragEnd={handleDragEnd}
                 dataIds={dataIds}
                 renderDragOverlay={renderDragOverlay}
+              />
+            ) : groupBy ? (
+              <GroupedTable
+                groupBy={groupBy}
+                groupByLabels={groupByLabels ?? {}}
+                groupByOrder={groupByOrder}
               />
             ) : (
               <DataGridTable />

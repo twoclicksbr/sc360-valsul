@@ -29,9 +29,11 @@ class ModuleRequest extends FormRequest
             'owner_id'    => ['required', 'integer', 'min:0'],
             'type'        => ['required', Rule::in(['module', 'submodule', 'pivot'])],
 
+            'url_prefix' => ['nullable', 'string', 'max:255'],
             'icon'       => ['nullable', 'string', 'max:255'],
             'model'      => ['nullable', 'string', 'max:255'],
             'request'    => ['nullable', 'string', 'max:255'],
+            'controller' => ['nullable', 'string', 'max:255'],
             'size_modal' => ['nullable', Rule::in(['p', 'm', 'g'])],
 
             'description_index'   => ['nullable', 'string'],

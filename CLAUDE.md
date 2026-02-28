@@ -191,13 +191,16 @@ id → campos específicos → order (default 1) → active (default true) → t
 
 | Tabela | Campos |
 |--------|--------|
-| `modules` | owner_level (enum: master/platform/tenant, default tenant), owner_id (default 0), slug (unique), name, icon (nullable), type (enum: module/submodule/pivot, default module), model, request, size_modal (enum: p/m/g, default m), description_index, description_show, description_store, description_update, description_delete, description_restore, after_store, after_update, after_restore, active, order |
+| `modules` | owner_level (enum: master/platform/tenant, default tenant), owner_id (default 0), slug (unique), url_prefix (nullable), name, icon (nullable), type (enum: module/submodule/pivot, default module), model, request, controller (nullable), size_modal (enum: p/m/g, default m), description_index, description_show, description_store, description_update, description_delete, description_restore, after_store, after_update, after_restore, active, order |
+| `module_fields` | module_id (FK modules, cascade), name, label, icon (nullable), type (string), length (int, nullable), precision (int, nullable), default (nullable), nullable (bool), required (bool), min (int, nullable), max (int, nullable), unique (bool), index (bool), unique_table (nullable), unique_column (nullable), fk_table (nullable), fk_column (nullable), fk_label (nullable), auto_from (nullable), auto_type (nullable), main (bool), is_custom (bool), owner_level, owner_id, order, active |
 
 Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
 - `owner_level` = nível de propriedade do módulo (master = TwoClicks, platform = plataforma, tenant = cliente)
 - `owner_id` = ID do owner (0 = todos / sem dono específico)
 - `slug` = identificador único usado na URL (substitui `name_url` e `name_table`)
+- `url_prefix` = prefixo opcional de URL antes do slug
 - `icon` = nome do ícone Lucide (ex: `Users`, `Package`) — renderizado dinamicamente
+- `controller` = controller específica no formato `System\\TenantController` (nullable — usa ModuleController genérica se nulo)
 - `size_modal` = tamanho padrão do modal CRUD (p/m/g)
 
 #### Tabelas de Tipo (referência)
@@ -232,7 +235,7 @@ Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
 
 ### Autenticação (Sanctum)
 
-Controller: `AuthController` — rotas públicas e protegidas por `auth:sanctum`.
+Controller: `App\Http\Controllers\Auth\AuthController` (`app/Http/Controllers/Auth/AuthController.php`) — rotas públicas e protegidas por `auth:sanctum`.
 
 O `{tenant}` pode ser qualquer slug de tenant (ex: `valsul`) ou `admin` (acessa `tc_main`).
 
@@ -247,7 +250,9 @@ Resposta do login:
 { "token": "1|abc...", "user": { "id": 1, "email": "...", "active": true, "person": { "id": 1, "name": "..." } } }
 ```
 
-### Rotas CRUD Genéricas (ModuleController)
+### Rotas CRUD Genéricas (System\ModuleController)
+
+Controller: `App\Http\Controllers\System\ModuleController` (`app/Http/Controllers/System/ModuleController.php`).
 
 Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `modules`.
 
@@ -256,6 +261,7 @@ Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `
 | GET | `api.{domínio}/v1/{tenant}/{module}` | `index` | Lista paginada com sort, per_page e filtros (search_id, search_name, search_type, date_type, date_from, date_to, expiration_date_from, expiration_date_to, birth_month_day_from, birth_month_day_to, active, include_deleted) |
 | POST | `api.{domínio}/v1/{tenant}/{module}` | `store` | Cria registro (usa Request dinâmica) |
 | GET | `api.{domínio}/v1/{tenant}/{module}/check-slug` | `checkSlug` | Verifica disponibilidade de slug (`?slug=&exclude_id=`) |
+| GET | `api.{domínio}/v1/{tenant}/{module}/scan-files` | `scanFiles` | Retorna listas de Models, Requests e Controllers disponíveis no projeto |
 | GET | `api.{domínio}/v1/{tenant}/{module}/{id}` | `show` | Exibe registro (inclui soft-deleted via `withTrashed`) |
 | PUT/PATCH | `api.{domínio}/v1/{tenant}/{module}/{id}` | `update` | Atualiza registro |
 | DELETE | `api.{domínio}/v1/{tenant}/{module}/{id}` | `destroy` | Soft delete + seta `active=false` |
@@ -280,13 +286,23 @@ Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `
 | `PlatformRequest` | Validação de platforms — valida `name`, `domain`, `slug`, `expiration_date`; credenciais geradas pelo Observer |
 | `PersonRequest` | Validação de pessoas |
 | `UserRequest` | Validação de usuários |
-| `ModuleRequest` | Validação de módulos |
+| `ModuleRequest` | Validação de módulos — campos: `owner_level`, `owner_id`, `slug`, `url_prefix`, `name`, `icon`, `type`, `model`, `request`, `controller`, `size_modal`, descriptions, after_* |
+| `ModuleFieldRequest` | Validação de campos de módulo — campos: `module_id`, `name`, `label`, `icon`, `type`, `length`, `precision`, `default`, `nullable`, `required`, `min`, `max`, `unique`, `index`, `unique_table`, `unique_column`, `fk_table`, `fk_column`, `fk_label`, `auto_from`, `auto_type`, `main`, `is_custom`, `owner_level`, `owner_id`, `order`, `active` |
 
 ### Padrão de Desenvolvimento
 
+#### Organização de Controllers
+
+Controllers organizadas em subpastas por responsabilidade:
+
+| Pasta | Namespace | Controllers |
+|-------|-----------|-------------|
+| `app/Http/Controllers/Auth/` | `App\Http\Controllers\Auth` | `AuthController` (login, logout, me) |
+| `app/Http/Controllers/System/` | `App\Http\Controllers\System` | `ModuleController` (CRUD genérico + scanFiles), `TenantController` (credentials), `PlatformController` (credentials) |
+
 #### Controller Genérica
 
-Uma única `ModuleController` resolve o CRUD de qualquer módulo. Ela busca as configurações na tabela `modules` (model, request, etc.) e executa dinamicamente. Somente em casos extremos se cria uma controller específica.
+`System\ModuleController` resolve o CRUD de qualquer módulo. Busca as configurações na tabela `modules` (model, request, controller) e executa dinamicamente. O campo `controller` permite sobrescrever a controller genérica por uma específica.
 
 > **Atenção — binding de parâmetro:** O Laravel faz injeção posicional para tipos primitivos (`string`). Quando a rota tem múltiplos parâmetros (`{tenant}` + `{module}`), `string $module` receberia o valor de `{tenant}`. A solução é usar `$request->route('module')` em todos os métodos. Todos os métodos do `ModuleController` recebem `Request $request` como primeiro parâmetro e obtêm o módulo via `$request->route('module')`.
 
@@ -299,8 +315,9 @@ Padrão de URL: `api.{domínio}/v1/{tenant}/{module}` e `api.{domínio}/v1/{tena
 O prefixo de path é `/v1/{tenant}` — sem prefixo `/api`. As rotas não estão mais restritas por domínio via `env('API_DOMAIN')`.
 
 **Rotas específicas (antes dos genéricos para evitar conflito):**
-- `GET /v1/{tenant}/tenants/{id}/credentials` → `TenantController::credentials` — retorna `sand_password`, `prod_password`, `log_password` descriptografados
-- `GET /v1/{tenant}/platforms/{id}/credentials` → `PlatformController::credentials` — mesma resposta para platforms
+- `GET /v1/{tenant}/tenants/{id}/credentials` → `System\TenantController::credentials` — retorna `sand_password`, `prod_password`, `log_password` descriptografados
+- `GET /v1/{tenant}/platforms/{id}/credentials` → `System\PlatformController::credentials` — mesma resposta para platforms
+- `GET /v1/{tenant}/modules/scan-files` → `System\ModuleController::scanFiles` — retorna `{ models: [], requests: [], controllers: {} }` (lista de classes disponíveis no projeto)
 
 #### Configuração de Módulo
 
@@ -346,6 +363,7 @@ Garante retorno 401 JSON para requisições não autenticadas. Sem isso, o Larav
 | `User` | default (dinâmica) | Usa a conexão setada pelo middleware |
 | `Person` | default (dinâmica) | Usa a conexão setada pelo middleware; cast `birth_date` como `'date:Y-m-d'` |
 | `Module` | default (dinâmica) | Usa a conexão setada pelo middleware |
+| `ModuleField` | default (dinâmica) | Usa a conexão setada pelo middleware; `module()` belongsTo; casts int/bool nos campos numéricos e booleanos |
 | `PersonalAccessToken` | via `getConnectionName()` | Retorna `DB::getDefaultConnection()` — garante que Sanctum use a conexão correta |
 
 ### Migrations por banco
@@ -363,6 +381,7 @@ Garante retorno 401 JSON para requisições não autenticadas. Sem isso, o Larav
 | `2025_02_24_000006` | users (com person_id FK) |
 | `2025_02_24_000007` | personal_access_tokens |
 | `2025_02_24_000008` | modules |
+| `2026_02_27_000001` | module_fields (FK modules, cascadeOnDelete) |
 
 **`database/migrations/tenant/`** — roda com `--database=tenant_sand` / `--database=tenant_prod`
 
@@ -372,6 +391,7 @@ Garante retorno 401 JSON para requisições não autenticadas. Sem isso, o Larav
 | `2025_02_24_000002` | people |
 | `2025_02_24_000003` | users (com person_id FK) |
 | `2026_02_24_213424` | personal_access_tokens |
+| `2026_02_27_000001` | module_fields (FK modules, cascadeOnDelete) |
 
 **`database/migrations/log/`** — roda com `--database=tenant_log`
 
@@ -402,8 +422,8 @@ Registrados em `AppServiceProvider::boot()`.
 | Seeder | O que faz |
 |--------|-----------|
 | `DatabaseSeeder` | Chama MainSeeder + TenantSeeder + AdminSeeder |
-| `MainSeeder` | Cria módulos em tc_main via `Module::on('main')->firstOrCreate` usando `slug` como chave: `tenants` (id=1, owner_level=master), `modules` (id=2, owner_level=master), `platforms` (id=3, owner_level=master), `pessoas` (id=4, owner_level=master). **Não cria tenant/platform** — provisionamento é feito pelos Observers ao salvar. |
-| `TenantSeeder` | Cria módulos na conexão default (tenant) via `Module::firstOrCreate`: `modules` (id=1), `pessoas` (id=2), `users` (id=3) — todos com `owner_level=master`. |
+| `MainSeeder` | Cria módulos em tc_main via `Module::on('main')->firstOrCreate` usando `slug` como chave: `tenants` (id=1, controller=`System\\TenantController`), `modules` (id=2, controller=`System\\ModuleController`), `platforms` (id=3, controller=`System\\PlatformController`), `pessoas` (id=4), `module-fields` (id=5, type=submodule, model=ModuleField, request=ModuleFieldRequest). **Não cria tenant/platform** — provisionamento é feito pelos Observers ao salvar. |
+| `TenantSeeder` | Cria módulos na conexão default (tenant) via `Module::firstOrCreate`: `modules` (id=1, controller=`System\\ModuleController`), `pessoas` (id=2), `users` (id=3), `module-fields` (id=4, type=submodule, model=ModuleField, request=ModuleFieldRequest) — todos com `owner_level=master`. |
 | `AdminSeeder` | Cria person 'Admin' + user admin@admin.com na conexão default atual (main ou tenant) |
 
 **Comandos para rodar:**
@@ -474,7 +494,7 @@ src/
 │   ├── auth-routing.tsx
 │   ├── auth-routes.tsx
 │   └── require-auth.tsx
-├── components/           ← componentes reutilizáveis (generic-grid.tsx, generic-modal.tsx, grid-actions.tsx)
+├── components/           ← componentes reutilizáveis (generic-grid.tsx, generic-modal.tsx, grid-actions.tsx, icon-picker-modal.tsx)
 ├── config/               ← configurações do app
 ├── css/                  ← estilos globais
 ├── errors/               ← páginas de erro (404, etc.)
@@ -498,7 +518,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
 | `/platforms` | `PlatformsPage` | Grid de platforms — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`PlatformShowModal`, max-w-6xl) ✅ — **só acessível no tenant `admin`** |
 | `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`TenantShowModal`, max-w-6xl) ✅ — **só acessível no tenant `admin`** |
-| `/modules` | `ModulesPage` | Gestão de módulos ✅ — GenericGrid (moduleId=2) + ModuleModal (create/delete/restore) + ModuleShowModal (show/edit, CRM max-w-6xl) — colunas: name, slug, type, owner_level |
+| `/modules` | `ModulesPage` | Gestão de módulos ✅ — GenericGrid agrupado por owner_level (moduleId=2) + ModuleModal (create/delete/restore) + ModuleShowModal (show/edit, inline na página com "← Voltar") — colunas: name, slug, type, owner_level |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas ✅ — GenericGrid com filtro de aniversário + PersonModal (create/delete/restore) + PersonShowModal (show/edit, CRM max-w-4xl) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -611,6 +631,7 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 - Btn pesquisar — abre `Dialog` de pesquisa (implementado) ✅; calendar com locale `ptBR`
 - Empty state — exibe ícone `SearchX` + mensagem "Nenhum registro encontrado"
 - `fetchData` usa `URLSearchParams` — inclui `activeFilters` spread nos params da query
+- **Agrupamento:** props `groupBy` (campo), `groupByLabels` (mapa key→label), `groupByOrder` (ordem dos grupos) — quando definido, renderiza `GroupedTable` (sem DnD) com cabeçalhos separadores entre grupos
 
 **Props de pesquisa (`GenericGridProps`):**
 - `renderSearchFilters` — `ReactNode` com filtros específicos do módulo (linha 2 do modal)
@@ -761,27 +782,50 @@ Mesma estrutura do `TenantShowModal`. Aberto quando `mode = 'show'` ou `mode = '
 - `slug`, `db_name` → `<Badge variant="info" appearance="light">`
 - `expiration_date` → Badge colorido com duração legível
 
-### ModuleShowModal (`module-show-modal.tsx`) — max-w-6xl, h-85vh
+### ModuleShowModal (`module-show-modal.tsx`) — max-w-6xl, h-85vh / inline
 
-Modal CRM para módulos. Aberto quando `mode = 'show'` ou `mode = 'edit'` via `ModuleModal`.
+Modal CRM para módulos. Suporta dois modos de renderização:
+- **Dialog** (padrão): abre como modal quando `mode = 'show'` ou `mode = 'edit'` via `ModuleModal` (sem `ModuleInlineCtx`)
+- **Inline** (`inline` prop): renderizado diretamente na página quando `ModuleInlineCtx` está disponível — substituindo o grid no `ModulesPage`
 
-**Estrutura:**
-- Header: #ID + Nome + Badge Ativo/Inativo + badges de tipo e proprietário (direita) + timestamps
-- Tabs: Dados, Campos, Grid, Form, Restrições, Seeds (5 últimas: "Em desenvolvimento")
+**Props adicionais:**
+- `inline?: boolean` — renderiza sem Dialog, integrado à página
+- `onBack?: () => void` — callback do botão "← Voltar" (inline mode)
 
-**Tab Dados — grade 12 colunas:**
-- Linha 1: Ícone (span 1, botão com preview dinâmico do ícone Lucide) + Nome (span 5) + Slug (span 2, validação real-time) + Tipo (span 2) + Proprietário (span 2)
-- Linha 2: Model (span 3) + Request (span 3)
-- Linha 3: Tamanho Modal (span 2) + Após Criar (span 2) + Após Editar (span 2) + Após Restaurar (span 2)
-- Linhas 4-5: 6 Textareas de description (index, show, store, update, delete, restore) — 4 colunas cada
+**Estrutura (ambos os modos):**
+- **Linha 1 (inline):** `← Voltar` (botão ghost) + #ID + Nome + Badge Ativo/Inativo + badges Tipo/Proprietário (direita)
+- **Linha 1 (dialog):** #ID + Nome + Badge Ativo/Inativo + badges Tipo/Proprietário (direita)
+- **Linha 2:** Timestamps (Criado em / Alterado em / Deletado em)
+- **Tabs:** Dados ✅, Campos ✅, Grid, Form, Restrições, Seeds (últimas 4: "Em desenvolvimento")
 
-**Ícone dinâmico:** `import * as LucideIcons` — converte o valor do campo `icon` em componente React; fallback para `Puzzle` se ícone não encontrado.
+**Tab Dados — 4 cards:**
+- **Identificação:** Ícone (span 1, botão abre `IconPickerModal`) + Nome (span 5) + Tipo (span 2) + Proprietário (span 2) + Tamanho Modal (span 2)
+- **Configuração:** Slug (span 2, validação real-time) + Prefixo URL (span 4, com preview `/{slug}`) + Model (span 2, select scan-files) + Request (span 2, select scan-files) + Controller (span 2, select scan-files agrupado por pasta)
+- **Ações de Comportamento (col-4) + Submódulos (col-8):** Selects Após Criar/Editar/Restaurar | checkboxes de submódulos disponíveis (visível apenas quando type=module; busca `GET /v1/{tenant}/modules?search_type=submodule`)
+- **Descrições:** 6 Textareas 3×2 (index, show, store, update, delete, restore)
+
+**Tab Campos:** componente `ModuleFieldsTab` — CRUD inline de campos com drag-and-drop (@dnd-kit), formulário expansível por linha
+
+**Scan de arquivos:** `GET /v1/{tenant}/modules/scan-files` — popula selects de Model, Request e Controller
+
+**Ícone dinâmico:** `import * as LucideIcons` — converte o valor do campo `icon` em componente React; `null` se ícone não encontrado (sem fallback).
+
+**ModuleModal — contexto inline:**
+- Exporta `ModuleInlineCtx = createContext<((record: ModuleForEdit) => void) | null>(null)`
+- Quando context está disponível e mode=show/edit: chama `goInline(record)` + fecha modal
+- Quando sem context: abre `ModuleShowModal` como Dialog (comportamento anterior)
+
+**ModulesPage — renderização inline:**
+- `selectedModule: ModuleForEdit | null` state
+- Quando `selectedModule !== null`: renderiza título `🔲 Módulos` + `ModuleShowModal inline`
+- Quando `null`: renderiza `ModuleInlineCtx.Provider` + `GenericGrid` (com `key={gridKey}` para forçar refresh)
+- `handleSuccess()`: limpa `selectedModule` + incrementa `gridKey`
 
 **ModulesPage — colunas `render`:**
-- `name` → botão clicável abre `ModuleShowModal`
+- `name` → botão clicável dispara inline via context
 - `slug` → `<Badge variant="info" appearance="light">`
 - `type` → Badge (module=primary, submodule=secondary, pivot=warning)
-- `owner_level` → Badge (master=primary, platform=secondary, tenant=default)
+- `owner_level` → Badge (master=primary, platform=secondary, tenant=outline)
 
 ### PersonShowModal (`person-show-modal.tsx`) — max-w-4xl
 

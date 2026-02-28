@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,16 +7,21 @@ import { apiGet } from '@/lib/api';
 import { getTenantSlug } from '@/lib/tenant';
 import { ModuleShowModal } from './module-show-modal';
 
+// Context para interceptar show/edit e renderizar inline na página
+export const ModuleInlineCtx = createContext<((record: ModuleForEdit) => void) | null>(null);
+
 export interface ModuleForEdit {
   id: number;
   owner_level: 'master' | 'platform' | 'tenant';
   owner_id: number;
   slug: string;
+  url_prefix: string | null;
   name: string;
   icon: string | null;
   type: 'module' | 'submodule' | 'pivot';
   model: string | null;
   request: string | null;
+  controller: string | null;
   size_modal: 'p' | 'm' | 'g' | null;
   description_index: string | null;
   description_show: string | null;
@@ -64,6 +69,7 @@ function toRenderMode(mode: ModuleModalProps['mode']): RenderMode {
 }
 
 export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, moduleId, size }: ModuleModalProps) {
+  const goInline = useContext(ModuleInlineCtx);
   const [renderMode, setRenderMode] = useState<RenderMode>(toRenderMode(mode));
 
   const [name, setName]               = useState('');
@@ -74,6 +80,15 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
   const [ownerLevel, setOwnerLevel]   = useState<string>('master');
   const [icon, setIcon]               = useState('');
   const [errors, setErrors]           = useState<FieldErrors>({});
+
+  // Se há contexto inline disponível e o modo é show/edit, delega para a página
+  useEffect(() => {
+    if (!open) return;
+    if ((mode === 'show' || mode === 'edit') && goInline && record) {
+      goInline(record);
+      onOpenChange(false);
+    }
+  }, [open, mode, goInline, record, onOpenChange]);
 
   useEffect(() => {
     if (open) {
@@ -157,13 +172,15 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
 
   return (
     <>
-      {/* Modal CRM show — abre quando mode é 'edit' ou 'show' */}
-      <ModuleShowModal
-        open={open && renderMode === 'show-crm'}
-        onOpenChange={(isOpen) => { if (!isOpen) onOpenChange(false); }}
-        record={record}
-        onSuccess={() => { onSuccess(); onOpenChange(false); }}
-      />
+      {/* Modal CRM show — abre quando mode é 'edit' ou 'show' e não há contexto inline */}
+      {!goInline && (
+        <ModuleShowModal
+          open={open && renderMode === 'show-crm'}
+          onOpenChange={(isOpen) => { if (!isOpen) onOpenChange(false); }}
+          record={record}
+          onSuccess={() => { onSuccess(); onOpenChange(false); }}
+        />
+      )}
 
       {/* Modal de formulário — abre para create/delete/restore */}
       {renderMode !== 'show-crm' && (

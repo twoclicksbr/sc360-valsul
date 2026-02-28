@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\System;
 
+use App\Http\Controllers\Controller;
 use App\Models\Module;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,48 @@ class ModuleController extends Controller
         return "App\\Http\\Requests\\{$module->request}";
     }
 
+    public function scanFiles(): JsonResponse
+    {
+        $models = collect(glob(app_path('Models') . '/*.php'))
+            ->map(fn($f) => pathinfo($f, PATHINFO_FILENAME))
+            ->reject(fn($name) => $name === 'PersonalAccessToken')
+            ->sort()
+            ->values();
+
+        $requests = collect(glob(app_path('Http/Requests') . '/*.php'))
+            ->map(fn($f) => pathinfo($f, PATHINFO_FILENAME))
+            ->sort()
+            ->values();
+
+        $controllersBase = app_path('Http/Controllers');
+        $controllers     = [];
+
+        // Controllers na raiz (exceto Controller.php base)
+        foreach (glob($controllersBase . '/*.php') ?: [] as $file) {
+            $filename = pathinfo($file, PATHINFO_FILENAME);
+            if ($filename === 'Controller') continue;
+            $controllers['Raiz'][] = $filename;
+        }
+
+        // Controllers em subpastas (um nível de profundidade)
+        foreach (glob($controllersBase . '/*/*.php') ?: [] as $file) {
+            $filename  = pathinfo($file, PATHINFO_FILENAME);
+            $subfolder = basename(dirname($file));
+            $controllers[$subfolder][] = $filename;
+        }
+
+        foreach ($controllers as &$group) {
+            sort($group);
+        }
+        ksort($controllers);
+
+        return response()->json([
+            'models'      => $models,
+            'requests'    => $requests,
+            'controllers' => (object) $controllers,
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $mod        = $this->resolveModule($request->route('module'));
@@ -40,6 +83,11 @@ class ModuleController extends Controller
         $query = $request->boolean('include_deleted')
             ? $modelClass::withTrashed()
             : $modelClass::query();
+
+        // Filtro por module_id (para submódulos)
+        if ($request->has('module_id') && in_array('module_id', $fillable, true)) {
+            $query->where('module_id', (int) $request->input('module_id'));
+        }
 
         // Filtro por ID
         if ($searchId = $request->input('search_id')) {

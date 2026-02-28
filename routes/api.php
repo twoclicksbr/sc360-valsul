@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\ModuleController;
-use App\Http\Controllers\PlatformController;
-use App\Http\Controllers\TenantController;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\System\ModuleController;
+use App\Http\Controllers\System\PlatformController;
+use App\Http\Controllers\System\TenantController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/{tenant}')->group(function () {
@@ -25,6 +25,9 @@ Route::prefix('v1/{tenant}')->group(function () {
         // Rotas específicas (antes dos genéricos para evitar conflito)
         Route::get('tenants/{id}/credentials',   [TenantController::class,   'credentials']);
         Route::get('platforms/{id}/credentials', [PlatformController::class, 'credentials']);
+
+        // Rotas específicas de modules (antes do genérico para evitar conflito)
+        Route::get('modules/scan-files', [ModuleController::class, 'scanFiles']);
 
         // Módulos genéricos
         Route::prefix('{module}')->group(function () {

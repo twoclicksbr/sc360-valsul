@@ -13,11 +13,13 @@ return new class extends Migration
             $table->enum('owner_level', ['master', 'platform', 'tenant'])->default('tenant');
             $table->unsignedBigInteger('owner_id')->default(0);
             $table->string('slug')->unique();
+            $table->string('url_prefix')->nullable();
             $table->string('name');
             $table->string('icon')->nullable();
             $table->enum('type', ['module', 'submodule', 'pivot'])->default('module');
             $table->string('model')->nullable();
             $table->string('request')->nullable();
+            $table->string('controller')->nullable();
             $table->enum('size_modal', ['p', 'm', 'g'])->default('m');
             $table->text('description_index')->nullable();
             $table->text('description_show')->nullable();
