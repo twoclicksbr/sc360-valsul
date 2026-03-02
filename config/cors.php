@@ -19,16 +19,16 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:5173',
-    ],
+    'allowed_origins' => [],
 
     'allowed_origins_patterns' => [
         '#^https?://(.*\.)?tc\.test(:\d+)?$#',
         '#^https?://.*\.sandbox\.tc\.test(:\d+)?$#',
+        '#^https?://(.*\.)?twoclicks\.(test|com\.br)(:\d+)?$#',
+        '#^https?://.*\.sandbox\.twoclicks\.(test|com\.br)(:\d+)?$#',
     ],
 
-    'allowed_headers' => ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    'allowed_headers' => ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'X-Tenant', 'X-Platform', 'X-Sandbox'],
 
     'exposed_headers' => [],
 

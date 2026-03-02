@@ -14,6 +14,7 @@ class Platform extends Model
     protected $fillable = [
         'name',
         'domain',
+        'domain_local',
         'slug',
         'db_name',
         'sand_user',

@@ -50,7 +50,7 @@ Arquivo: `.claude/commands/vite-close.md`
 
 ## Sobre o Projeto
 
-Plataforma SaaS multi-tenant de gerenciamento para auto peças, desenvolvida em **Laravel + JavaScript**. Cada cliente (tenant) possui banco de dados isolado. Um banco central (`tc_main`) gerencia os tenants. O objetivo é ter um sistema funcional em 20 dias, começando pelo cadastro de pessoas, autenticação e submódulos reutilizáveis.
+Plataforma SaaS multi-tenant de gerenciamento para auto peças, desenvolvida em **Laravel + JavaScript**. Cada cliente (tenant) possui banco de dados isolado. Um banco mestre por plataforma (`{platform-slug}_master`) gerencia os tenants. O objetivo é ter um sistema funcional em 20 dias, começando pelo cadastro de pessoas, autenticação e submódulos reutilizáveis.
 
 ---
 
@@ -59,21 +59,22 @@ Plataforma SaaS multi-tenant de gerenciamento para auto peças, desenvolvida em 
 ### Conceito
 - TwoClicks é uma plataforma SaaS que atende múltiplos clientes (tenants)
 - Cada tenant tem seu próprio banco de dados isolado
-- Um banco central (`tc_main`) gerencia os tenants
+- Cada plataforma tem um banco mestre (`{platform-slug}_master`) que gerencia seus tenants
 
 ### Bancos de Dados e Schemas
 
 | Banco | Schemas | Conteúdo |
 |-------|---------|----------|
-| `tc_main` | `prod`, `sand`, `log` | tenants, platforms, landlord users, planos |
-| `tc_{db_name}` | `prod`, `sand`, `log` | people, users, modules, etc. (por tenant) |
+| `tc_master` | `prod`, `sand`, `log` | tenants, platforms, users, modules da plataforma TwoClicks |
+| `{platform-slug}_master` | `prod`, `sand`, `log` | tenants, users, modules de cada plataforma |
+| `{platform-slug}_{tenant-slug}` | `prod`, `sand`, `log` | people, users, modules, etc. (por tenant) |
 
 Cada banco possui 3 schemas PostgreSQL:
 - **`prod`** — dados de produção
 - **`sand`** — sandbox (ambiente de testes isolado)
 - **`log`** — audit logs (tabela `audit_logs`)
 
-O `search_path` ativo é determinado pelo subdomínio da requisição: `.sandbox.` no hostname → `sand`, caso contrário → `prod`. O schema `log` é sempre incluído como segundo path.
+O `search_path` ativo é determinado pelo subdomínio da requisição: `.sandbox.` presente no hostname → `sand`, caso contrário → `prod`. O schema `log` é sempre incluído como segundo path.
 
 ### URLs
 
@@ -81,25 +82,25 @@ O `search_path` ativo é determinado pelo subdomínio da requisição: `.sandbox
 
 | URL | Acesso |
 |-----|--------|
-| `admin.twoclicks.com.br` | Landlord (admin TwoClicks) |
-| `{slug}.twoclicks.com.br` | Tenant (cliente) |
+| `master.twoclicks.com.br` | Master TwoClicks (nível plataforma) |
+| `{tenant}.{platform}.twoclicks.com.br` | Tenant (cliente) |
 
 **API (centralizada):**
 
-| Rota | Banco |
-|------|-------|
-| `api.twoclicks.com.br/v1/admin/auth/login` | tc_main |
-| `api.twoclicks.com.br/v1/admin/{module}` | tc_main |
-| `api.twoclicks.com.br/v1/{tenant}/auth/login` | tc_{db_name} |
-| `api.twoclicks.com.br/v1/{tenant}/{module}` | tc_{db_name} |
+O tenant e a platform são resolvidos pelo middleware via hostname ou headers — não há mais `{tenant}` na URL.
+
+| Rota | Descrição |
+|------|-----------|
+| `{tenant}.{platform}.api.twoclicks.com.br/v1/auth/login` | Login |
+| `{tenant}.{platform}.api.twoclicks.com.br/v1/{module}` | CRUD genérico |
 
 **Local (dev):**
 
 | URL | Acesso |
 |-----|--------|
-| `admin.tc.test` | Landlord |
-| `valsul.tc.test` | Tenant |
-| `api.tc.test/v1/{tenant}/{module}` | API |
+| `master.tc.test` | Master TwoClicks |
+| `valsul.tc.test` | Tenant (com headers X-Tenant/X-Platform/X-Sandbox) |
+| `api.tc.test/v1/{module}` | API (tenant/platform via headers) |
 
 ### Fluxo de Criação de Tenant
 
@@ -111,7 +112,7 @@ O `search_path` ativo é determinado pelo subdomínio da requisição: `.sandbox
    - `sand_password`, `prod_password`, `log_password` aleatórios (Str::random(24))
    - `expiration_date` = hoje + 30 dias (se não informada)
 3. `TenantObserver::created` chama `TenantDatabaseService::provision()`:
-   - Cria banco `tc_{db_name}` no PostgreSQL (via conexão main como superuser)
+   - Cria banco `{platform-slug}_{tenant-slug}` no PostgreSQL (via conexão main como superuser)
    - Cria 3 users PostgreSQL: `sand_{base}`, `prod_{base}`, `log_{base}`
    - Dropa schema `public`; cria schemas `sand`, `prod`, `log` com ownership nos respectivos users
    - Roda migrations `database/migrations/tenant/` nos schemas `sand` e `prod`
@@ -167,7 +168,7 @@ id → campos específicos → order (default 1) → active (default true) → t
 
 ### Estrutura de Tabelas
 
-#### Banco tc_main
+#### Banco master da plataforma (ex: `tc_master`)
 
 | Tabela | Campos |
 |--------|--------|
@@ -178,7 +179,7 @@ id → campos específicos → order (default 1) → active (default true) → t
 | `modules` | (mesmos campos que tenant — ver seção Configuração) |
 | `personal_access_tokens` | tokenable_type, tokenable_id, name, token, abilities, last_used_at, expires_at |
 
-> **Nota:** `tc_main` tem as mesmas tabelas operacionais que os bancos tenant (`people`, `users`, `modules`, `personal_access_tokens`) para suportar a autenticação e CRUD do landlord admin via `/v1/admin/`.
+> **Nota:** O banco master tem as mesmas tabelas operacionais que os bancos tenant (`people`, `users`, `modules`, `personal_access_tokens`) para suportar autenticação e CRUD do nível master via `/v1/`.
 
 #### Principais (por tenant)
 
@@ -237,13 +238,13 @@ Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
 
 Controller: `App\Http\Controllers\Auth\AuthController` (`app/Http/Controllers/Auth/AuthController.php`) — rotas públicas e protegidas por `auth:sanctum`.
 
-O `{tenant}` pode ser qualquer slug de tenant (ex: `valsul`) ou `admin` (acessa `tc_main`).
+Tenant e platform são resolvidos pelo middleware via hostname ou headers (não há `{tenant}` na URL).
 
 | Método | URL | Descrição | Auth |
 |--------|-----|-----------|------|
-| POST | `api.{domínio}/v1/{tenant}/auth/login` | Login → retorna token + user | Público |
-| POST | `api.{domínio}/v1/{tenant}/auth/logout` | Logout → revoga token atual | Bearer |
-| GET | `api.{domínio}/v1/{tenant}/auth/me` | Retorna usuário autenticado com `person` | Bearer |
+| POST | `api.{domínio}/v1/auth/login` | Login → retorna token + user | Público |
+| POST | `api.{domínio}/v1/auth/logout` | Logout → revoga token atual | Bearer |
+| GET | `api.{domínio}/v1/auth/me` | Retorna usuário autenticado com `person` | Bearer |
 
 Resposta do login:
 ```json
@@ -254,18 +255,18 @@ Resposta do login:
 
 Controller: `App\Http\Controllers\System\ModuleController` (`app/Http/Controllers/System/ModuleController.php`).
 
-Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `modules`.
+Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `modules`. Tenant e platform resolvidos pelo middleware via hostname/headers.
 
 | Método | URL | Método Controller | Descrição |
 |--------|-----|-------------------|-----------|
-| GET | `api.{domínio}/v1/{tenant}/{module}` | `index` | Lista paginada com sort, per_page e filtros (search_id, search_name, search_type, date_type, date_from, date_to, expiration_date_from, expiration_date_to, birth_month_day_from, birth_month_day_to, active, include_deleted) |
-| POST | `api.{domínio}/v1/{tenant}/{module}` | `store` | Cria registro (usa Request dinâmica) |
-| GET | `api.{domínio}/v1/{tenant}/{module}/check-slug` | `checkSlug` | Verifica disponibilidade de slug (`?slug=&exclude_id=`) |
-| GET | `api.{domínio}/v1/{tenant}/{module}/scan-files` | `scanFiles` | Retorna listas de Models, Requests e Controllers disponíveis no projeto |
-| GET | `api.{domínio}/v1/{tenant}/{module}/{id}` | `show` | Exibe registro (inclui soft-deleted via `withTrashed`) |
-| PUT/PATCH | `api.{domínio}/v1/{tenant}/{module}/{id}` | `update` | Atualiza registro |
-| DELETE | `api.{domínio}/v1/{tenant}/{module}/{id}` | `destroy` | Soft delete + seta `active=false` |
-| PATCH | `api.{domínio}/v1/{tenant}/{module}/{id}/restore` | `restore` | Restaura soft-deleted |
+| GET | `api.{domínio}/v1/{module}` | `index` | Lista paginada com sort, per_page e filtros (search_id, search_name, search_type, date_type, date_from, date_to, expiration_date_from, expiration_date_to, birth_month_day_from, birth_month_day_to, active, include_deleted) |
+| POST | `api.{domínio}/v1/{module}` | `store` | Cria registro (usa Request dinâmica) |
+| GET | `api.{domínio}/v1/{module}/check-slug` | `checkSlug` | Verifica disponibilidade de slug (`?slug=&exclude_id=`) |
+| GET | `api.{domínio}/v1/{module}/scan-files` | `scanFiles` | Retorna listas de Models, Requests e Controllers disponíveis no projeto |
+| GET | `api.{domínio}/v1/{module}/{id}` | `show` | Exibe registro (inclui soft-deleted via `withTrashed`) |
+| PUT/PATCH | `api.{domínio}/v1/{module}/{id}` | `update` | Atualiza registro |
+| DELETE | `api.{domínio}/v1/{module}/{id}` | `destroy` | Soft delete + seta `active=false` |
+| PATCH | `api.{domínio}/v1/{module}/{id}/restore` | `restore` | Restaura soft-deleted |
 
 ### CORS (`config/cors.php`)
 
@@ -275,7 +276,7 @@ Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `
 | `allowed_methods` | `['*']` |
 | `allowed_origins` | `['http://localhost:5173']` |
 | `allowed_origins_patterns` | `['#^https?://(.*\.)?tc\.test(:\d+)?$#']` (todos os subdomínios + domínio base) |
-| `allowed_headers` | `['Content-Type', 'Authorization', 'Accept', 'X-Requested-With']` |
+| `allowed_headers` | `['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'X-Tenant', 'X-Platform', 'X-Sandbox']` |
 | `supports_credentials` | `true` |
 
 ### Requests (`app/Http/Requests/`)
@@ -304,20 +305,20 @@ Controllers organizadas em subpastas por responsabilidade:
 
 `System\ModuleController` resolve o CRUD de qualquer módulo. Busca as configurações na tabela `modules` (model, request, controller) e executa dinamicamente. O campo `controller` permite sobrescrever a controller genérica por uma específica.
 
-> **Atenção — binding de parâmetro:** O Laravel faz injeção posicional para tipos primitivos (`string`). Quando a rota tem múltiplos parâmetros (`{tenant}` + `{module}`), `string $module` receberia o valor de `{tenant}`. A solução é usar `$request->route('module')` em todos os métodos. Todos os métodos do `ModuleController` recebem `Request $request` como primeiro parâmetro e obtêm o módulo via `$request->route('module')`.
+> **Atenção — binding de parâmetro:** Todos os métodos do `ModuleController` recebem `Request $request` como primeiro parâmetro e obtêm o módulo via `$request->route('module')`.
 
 #### Rota Genérica
 
 `{module}` corresponde ao `slug` da tabela `modules`. Uma única rota atende módulos e submódulos.
 
-Padrão de URL: `api.{domínio}/v1/{tenant}/{module}` e `api.{domínio}/v1/{tenant}/{module}/{id}`
+Padrão de URL: `api.{domínio}/v1/{module}` e `api.{domínio}/v1/{module}/{id}`
 
-O prefixo de path é `/v1/{tenant}` — sem prefixo `/api`. As rotas não estão mais restritas por domínio via `env('API_DOMAIN')`.
+O prefixo de path é `/v1` — sem prefixo `/api` e sem `{tenant}` (resolvido pelo middleware). As rotas não estão restritas por domínio via `env('API_DOMAIN')`.
 
 **Rotas específicas (antes dos genéricos para evitar conflito):**
-- `GET /v1/{tenant}/tenants/{id}/credentials` → `System\TenantController::credentials` — retorna `sand_password`, `prod_password`, `log_password` descriptografados
-- `GET /v1/{tenant}/platforms/{id}/credentials` → `System\PlatformController::credentials` — mesma resposta para platforms
-- `GET /v1/{tenant}/modules/scan-files` → `System\ModuleController::scanFiles` — retorna `{ models: [], requests: [], controllers: {} }` (lista de classes disponíveis no projeto)
+- `GET /v1/tenants/{id}/credentials` → `System\TenantController::credentials` — retorna `sand_password`, `prod_password`, `log_password` descriptografados
+- `GET /v1/platforms/{id}/credentials` → `System\PlatformController::credentials` — mesma resposta para platforms
+- `GET /v1/modules/scan-files` → `System\ModuleController::scanFiles` — retorna `{ models: [], requests: [], controllers: {} }` (lista de classes disponíveis no projeto)
 
 #### Configuração de Módulo
 
@@ -331,11 +332,26 @@ Sem mexer em rotas, sem criar controller de CRUD. Tudo dinâmico.
 
 ### Middleware Multi-Tenancy (`app/Http/Middleware/ResolveTenant.php`)
 
-Resolve a conexão do banco com base no `{tenant}` da URL e no subdomínio da requisição:
-- Detecta ambiente via hostname: `.sandbox.` presente → `schema='sand'`, caso contrário → `schema='prod'`
-- `search_path` = `'{schema},log'` (ex: `'prod,log'` ou `'sand,log'`)
-- `{tenant} = 'admin'` → reconfigura `main` com o `search_path` correto (`DB::purge('main')`) e define como default
-- `{tenant} = qualquer slug` → configura conexão `tenant` com `database=tc_{db_name}`, credenciais do schema correto (`sand_user/sand_password` ou `prod_user/prod_password`) e `search_path` correto
+Resolve a conexão do banco com base no hostname da requisição ou headers (dev local). Não usa mais `{tenant}` na URL.
+
+**Resolução de tenant e platform:**
+- **Produção** — hostname: `{tenant}.{platform}.api.{base-domain}` (ex: `master.tc.api.twoclicks.com.br`)
+  - `sandbox` como terceiro segmento (ex: `master.tc.sandbox.api.tc.test`) → `schema='sand'`
+- **Dev local** — hostname simples (ex: `api.tc.test`) + headers HTTP:
+  - `X-Tenant: master`, `X-Platform: tc`, `X-Sandbox: 1` (opcional)
+  - Sem headers válidos → retorna 400
+
+**Níveis de acesso (`config('app.access_level')`):**
+- `master` — tenant=`master` + platform=`ROOT_PLATFORM_SLUG` (env, default `tc`)
+- `platform` — tenant=`master` + outra platform
+- `tenant` — qualquer outro tenant
+
+**Fluxo de conexão:**
+- `schema` = `sand` ou `prod` (`.sandbox.` no hostname)
+- `search_path` = `'{schema},log'`
+- Busca a `Platform` pelo `slug` no banco main → 404 se não encontrada
+- Acesso `master`/`platform` → aponta `main` para `{platform->db_name}`, usa como default
+- Acesso `tenant` → usa conexão `platform_lookup` (banco master da platform) para buscar o tenant; configura conexão `tenant` com `database={platform-slug}_{tenant-slug}`, credenciais do schema correto
 
 **Prioridade de Middleware** (`bootstrap/app.php`):
 ```php
@@ -455,7 +471,7 @@ VITE_APP_VERSION=9.2.6
 
 ## Laravel API
 VITE_API_URL=https://api.tc.test
-VITE_TENANT_SLUG=demo
+VITE_PLATFORM_SLUG=tc
 
 ## Supabase Configuration (placeholder — não utilizado)
 VITE_SUPABASE_URL=your_supabase_url
@@ -463,13 +479,13 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
-> `VITE_TENANT_SLUG` é fallback para desenvolvimento local em `localhost` (sem subdomínio). Em produção/dev com subdomínio, o tenant é detectado automaticamente via `getTenantSlug()`.
+> `VITE_PLATFORM_SLUG` identifica a plataforma ativa para este deployment. Enviado como header `X-Platform` em todas as chamadas de API.
 
 ### Auth (Laravel Sanctum) — estrutura em `frontend/src/auth/`
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `adapters/laravel-adapter.ts` | Adapter Laravel — login/logout/me via `VITE_API_URL` + `getTenantSlug()` |
+| `adapters/laravel-adapter.ts` | Adapter Laravel — login/logout/me via `VITE_API_URL`; tenant/platform enviados como headers `X-Tenant`/`X-Platform`/`X-Sandbox` |
 | `adapters/supabase-adapter.ts` | Adapter Supabase (legado — mantido, não utilizado) |
 | `providers/laravel-provider.tsx` | `AuthProvider` em uso — expõe `login`, `logout`, `getUser`, etc. via context |
 | `providers/supabase-provider.tsx` | Provider Supabase (legado — mantido, não utilizado) |
@@ -517,9 +533,9 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 |------|-----------|-----------|
 | `/` | `Navigate to="/dashboard"` | Redireciona para dashboard |
 | `/dashboard` | `DashboardPage` | Dashboard geral (placeholder) |
-| `/platforms` | `PlatformsPage` | Grid de platforms — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`PlatformShowModal`, max-w-6xl) ✅ — **só acessível no tenant `admin`** |
-| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`TenantShowModal`, max-w-6xl) ✅ — **só acessível no tenant `admin`** |
-| `/modules` | `ModulesPage` | Gestão de módulos ✅ — GenericGrid agrupado em 2 níveis (owner_level + type) com DnD por grupo (moduleId=2) + ModuleModal (create/delete/restore) + ModuleShowModal (show/edit, inline na página com breadcrumb "← Voltar") — colunas: name, slug, order + filtros: Proprietário, Tipo |
+| `/platforms` | `PlatformsPage` | Grid de platforms — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`PlatformShowModal`, max-w-6xl) ✅ — **só acessível no tenant `master`** |
+| `/tenants` | `TenantsPage` | Grid de tenants — CRUD completo via modal ✅ + filtro de Validade ✅ + modal CRM (`TenantShowModal`, max-w-6xl) ✅ — **só acessível no tenant `master`** |
+| `/modules` | `ModulesPage` | Gestão de módulos ✅ — GenericGrid agrupado em 2 níveis (owner_level + type) com DnD por grupo (moduleId=1) + ModuleModal (create/delete/restore) + ModuleShowModal (show/edit, inline na página com breadcrumb "← Voltar") — colunas: name, slug, order + filtros: Proprietário, Tipo |
 | `/pessoas` | `PessoasPage` | Cadastro de pessoas ✅ — GenericGrid com filtro de aniversário + PersonModal (create/delete/restore) + PersonShowModal (show/edit, CRM max-w-4xl) |
 | `/produtos` | `ProdutosPage` | Produtos (placeholder) |
 | `/compras` | `ComprasPage` | Compras (placeholder) |
@@ -531,10 +547,7 @@ O arquivo contém as rotas do Metronic boilerplate (account, network, store, pub
 
 ### Platform Selector (`frontend/src/layouts/demo3/components/header-logo.tsx`)
 
-Dropdown no header (visível apenas quando `getUrlTenantSlug() === 'admin'`) para selecionar a plataforma ativa. Consome `platforms` e `selectPlatform` do `PlatformProvider`.
-
-- **Principal** — sem override (acessa `tc_main` diretamente)
-- **{nome da plataforma}** — seta override via `setPlatformOverride(slug)`, fazendo `getTenantSlug()` retornar o slug da plataforma selecionada
+Dropdown no header (visível apenas quando `getUrlTenantSlug() === 'master'`) para selecionar a plataforma ativa. Consome `platforms` e `selectPlatform` do `PlatformProvider`. Exibe logo TwoClicks + nome da plataforma selecionada (ou "TwoClicks" se nenhuma). **Não há mais opção "Principal"** — todas as plataformas são listadas diretamente.
 
 ### ModulesProvider (`frontend/src/providers/modules-provider.tsx`)
 
@@ -546,7 +559,7 @@ Contexto React que carrega e expõe a lista de módulos `type=module` ativos do 
 | `loading` | Boolean de carregamento |
 | `refreshModules()` | Rebusca a lista — chamar após criar/editar/deletar módulo |
 
-Fetch: `GET /v1/{tenant}/modules?type=module&per_page=100&sort=order&direction=desc&active=true`. Recarrega automaticamente quando `selectedPlatform` muda.
+Fetch: `GET /v1/modules?type=module&per_page=100&sort=order&direction=desc&active=true` (headers X-Tenant/X-Platform). Só executa quando autenticado (`auth?.access_token`). Recarrega automaticamente quando `selectedPlatform` muda.
 
 Hook: `useModules(): ModulesContextValue`
 
@@ -559,27 +572,21 @@ Contexto React que centraliza a lista de plataformas e a plataforma selecionada.
 | `platforms` | Lista de plataformas carregada do backend |
 | `refreshPlatforms()` | Rebusca a lista — chamado em `onDataLoad` do `PlatformsPage` |
 | `selectedPlatform` | Plataforma atualmente selecionada (ou `null` = Principal) |
-| `selectPlatform(platform)` | Seleciona plataforma + seta override no `tenant.ts` |
+| `selectPlatform(platform)` | Seleciona plataforma (sem override em `tenant.ts` — não há mais `setPlatformOverride`) |
 
 ### Navbar (`frontend/src/layouts/demo3/components/navbar-menu.tsx`)
 
 O menu horizontal do Demo3 tem um item fixo "Dashboard" como primeiro item (hardcoded no componente), seguido dos itens dinâmicos do `MENU_SIDEBAR[3]` (Account, Billing, Security, etc. — legado Metronic).
 
 **Dropdown Dashboard:**
-- Geral → `/dashboard`
-- Plataformas → `/platforms` — **visível apenas quando `getUrlTenantSlug() === 'admin'` e sem plataforma selecionada**
-- Tenants → `/tenants` — **visível apenas quando `getUrlTenantSlug() === 'admin'`**
-- Módulos → `/modules`
-- Pessoas → `/pessoas`
-- Produtos → `/produtos`
-- Comercial → `/comercial`
-- Financeiro → `/financeiro`
+- Geral → `/dashboard` (fixo)
+- Demais itens dinâmicos: gerados a partir dos módulos retornados pelo `useModules()` — `{ title: mod.name, path: '/${mod.slug}' }`. Sem itens hardcoded de Plataformas/Tenants/Módulos.
 
-**Sidebar (`sidebar-menu.tsx`):** dinâmico — consome `useModules()` do `ModulesProvider`. Item fixo "Dashboard" (ícone `LayoutDashboard`) sempre primeiro. Demais itens renderizados a partir dos módulos `type=module` retornados pela API, com ícone dinâmico via `DynamicIcon` (importa de `lucide-react` pelo nome; fallback `CircleDot`). Filtros de visibilidade: `platforms` visível só para admin sem plataforma selecionada; `tenants` visível só para admin.
+**Sidebar (`sidebar-menu.tsx`):** dinâmico — consome `useModules()` do `ModulesProvider`. Item fixo "Dashboard" (ícone `LayoutDashboard`) sempre primeiro. Demais itens renderizados a partir dos módulos `type=module` retornados pela API, com ícone dinâmico via `DynamicIcon` (importa de `lucide-react` pelo nome; fallback `CircleDot`). **Sem filtros de visibilidade por `isAdmin`/`selectedPlatform`** — todos os módulos do usuário são exibidos.
 
 ### API Client (`frontend/src/lib/api.ts`)
 
-Wrapper centralizado para chamadas à API Laravel. Injeta `Authorization: Bearer {token}` automaticamente.
+Wrapper centralizado para chamadas à API Laravel. Injeta `Authorization: Bearer {token}` e headers de tenant/platform automaticamente.
 
 | Função | Método HTTP | Descrição |
 |--------|-------------|-----------|
@@ -589,17 +596,24 @@ Wrapper centralizado para chamadas à API Laravel. Injeta `Authorization: Bearer
 | `apiPut<T>(path, body)` | PUT | Retorna `T`; lança erro com `status` + `data` |
 | `apiDelete<T>(path)` | DELETE | Retorna `T`; lança erro com `status` + `data` |
 
+**Headers injetados automaticamente em toda chamada:**
+- `X-Tenant: {getUrlTenantSlug()}` — slug do tenant (primeiro subdomínio da URL)
+- `X-Platform: {getPlatformSlug()}` — slug da platform (de `VITE_PLATFORM_SLUG`)
+- `X-Sandbox: 1` — apenas quando `isSandbox()` retorna true
+- A URL da API é fixa (`VITE_API_URL`) — sem transformação de subdomínio sandbox
+
 ### Tenant Detection (`frontend/src/lib/tenant.ts`)
 
 ```ts
-getUrlTenantSlug(): string   // slug detectado pela URL (subdomínio)
-getTenantSlug(): string      // slug efetivo — retorna override da plataforma selecionada ou getUrlTenantSlug()
-setPlatformOverride(slug: string | null): void
+getUrlTenantSlug(): string   // slug detectado pelo primeiro subdomínio da URL
+getTenantSlug(): string      // alias de getUrlTenantSlug() (sem override)
+getPlatformSlug(): string    // lê VITE_PLATFORM_SLUG (default 'tc')
 ```
-- `getUrlTenantSlug()` — detecta tenant pelo subdomínio: `demo.tc.test` → `'demo'`; fallback para `VITE_TENANT_SLUG` em localhost
-- `getTenantSlug()` — retorna o override de plataforma (quando uma plataforma foi selecionada no header) ou o slug da URL; usado para chamadas de API e checks de permissão em tela
-- `getUrlTenantSlug()` usado em: `laravel-adapter.ts` (auth), navbar/sidebar (checks de visibilidade admin)
-- `getTenantSlug()` usado em: chamadas de API de módulos, verificações de acesso a rotas
+- `getUrlTenantSlug()` — detecta tenant pelo subdomínio: `master.tc.test` → `'master'`; sem subdomínio → fallback `'master'`
+- `getTenantSlug()` — retorna `getUrlTenantSlug()` diretamente; **não há mais override de platform**
+- `getPlatformSlug()` — lê `VITE_PLATFORM_SLUG`; cada deployment define seu próprio valor
+- **`setPlatformOverride` removido** — não existe mais
+- `getUrlTenantSlug()` usado em: `laravel-adapter.ts` (header X-Tenant), navbar/sidebar (checks `=== 'master'`)
 
 ### Vite Config (`frontend/vite.config.ts`)
 
@@ -616,8 +630,8 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 | Fase | Descrição |
 |------|-----------|
 | **Fase 1** | Criar migration, model, request, controller (modules, people, users) ✅ |
-| **Fase 2** | Montar rotas (routes/api.php com prefixo `v1/{tenant}/{module}`, sem prefixo /api) ✅ |
-| **Fase 3** | Login + tela — backend ✅ (AuthController + Sanctum, multi-tenant + admin) / frontend ✅ (laravel-adapter.ts + laravel-provider.tsx + getTenantSlug() implementados) |
+| **Fase 2** | Montar rotas (routes/api.php com prefixo `v1/{module}`, sem prefixo /api e sem `{tenant}` — resolvido por middleware via hostname/headers) ✅ |
+| **Fase 3** | Login + tela — backend ✅ (AuthController + Sanctum, multi-tenant) / frontend ✅ (laravel-adapter.ts + laravel-provider.tsx + getUrlTenantSlug() + getPlatformSlug() implementados) |
 | **Fase 4** | Dashboard demonstração — placeholder criado (`/dashboard`, página "Em desenvolvimento") ✅ |
 | **Fase 5** | Tela padrão index (grid) — ✅ `GenericGrid` implementado (reutilizável para todos os módulos) |
 | **Fase 5.1** | Tela show/create/edit/delete/restore (página inteira) — não utilizada; projeto usa modal |
@@ -633,7 +647,8 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 **Componente genérico:** `frontend/src/components/generic-grid.tsx` (`GenericGrid`)
 
 - Recebe `moduleId` + `columns` (config declarativa) + `modalComponent` — tudo reutilizável
-- Busca `moduleConfig` via `GET /v1/{tenant}/modules/{moduleId}` (name, slug) — **ou bypass**: props `slug` e `title` fornecidos diretamente, dispensando o fetch de config
+- Busca `moduleConfig` via `GET /v1/modules/{moduleId}` (name, slug, icon) — **ou bypass**: props `slug` e `title` fornecidos diretamente, dispensando o fetch de config
+- Ícone do cabeçalho resolvido via `IconToRender`: prop `Icon` tem prioridade; caso não informada, resolve `moduleConfig.icon` (nome Lucide string) dinamicamente via `import * as LucideIcons`
 - Colunas configuráveis: `key`, `label`, `sortable`, `type` (text/date/datetime/boolean/badge/currency), `alignHead`, `alignBody`, `meta` (`{ style?: CSSProperties }`) — largura via `meta: { style: { width: '12%' } }`
 - Prop `render` na `ColumnConfig` — renderer customizado: `(value, record, openModal) => ReactNode`; tem precedência sobre `type`
 - Colunas padrão: drag handle, checkbox, id, active (badge com label "Status" no thead) — toggle via props `showDrag`, `showCheckbox`, `showId`, `showActive`
@@ -682,16 +697,22 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 - `owner_level` — filtra por enum `master/platform/tenant` (verificado via `in_array($fillable)`)
 
 **Drag & drop (implementado com `@dnd-kit`):**
-- Componente `DragHandle` usa `useSortable` do `@dnd-kit/sortable`; tooltip "Arrastar para reordenar" some durante o drag (`isDragging ? false : undefined`)
 - `DataGridTableDndRows` envolve o grid com `DndContext`; aceita `renderDragOverlay` (callback) e `onDragStart` (opcional)
-- **DragOverlay** com `dropAnimation={null}`: ao arrastar, a linha original fica invisível (`opacity: 0`, mantendo espaço), e uma cópia visual segue o cursor — sem animação de retorno ao soltar
+- **DragOverlay** com `dropAnimation={null}`: ao arrastar, a linha original fica invisível (`opacity: 0`, mantendo espaço), e uma cópia visual segue o cursor — sem animação de retorno ao soltar. Overlay usa `style={{...}}` inline (não Tailwind) para funcionar corretamente via `createPortal`.
 - Sem `transition` CSS nas linhas — evita que as linhas animem de volta antes do React re-renderizar com a nova ordem
 - `blur()` chamado em `internalHandleDragEnd` e `internalHandleDragCancel` — elimina qualquer foco/highlight residual
 - `handleDragEnd` e `handleGroupedDragEnd`: usam record ID (não índice de array) para lookup — `data.findIndex(d => String(d.id) === activeId)`. Recalcula `order` (`baseOrder = total - pageIndex * pageSize`, decrementa por posição). Sempre chama `fetchData()` no `finally` (sem update otimista).
 - `GroupedDndSection`: usa `String(row.original.id)` como ID dos itens sortable (não `row.id` do TanStack). `GroupedDndOverlay` usa `createPortal` para renderizar o `DragOverlay` no `document.body`.
-- Dois overlays distintos: `renderDragOverlay` (modo simples) e `renderGroupedDragOverlay` (modo agrupado) — ambos buscam item por record ID.
+- Dois overlays distintos: `renderDragOverlay` (modo simples) e `renderGroupedDragOverlay` (modo agrupado) — ambos chamam `buildDragOverlayContent(activeId)`.
 - Só os itens cujo `order` mudou de fato são enviados via PUT (otimização)
 - `DragHandle`: tooltip controlado por state local `tooltipOpen` para evitar glitch após soltar
+
+**Arquitetura DnD — evitar `useSortable` duplicado:**
+- Problema: `DragHandle` e `DataGridTableDndRow` chamavam `useSortable` com o mesmo record ID → `@dnd-kit` cancelava o drag imediatamente.
+- Solução: `DataGridTableDndRow` (em `data-grid-table-dnd-rows.tsx`) chama `useSortable` e expõe `{ attributes, listeners, isDragging }` via `RowDndCtx` (context exportado).
+- `DragHandle` (em `generic-grid.tsx`) lê o contexto via `useContext(RowDndCtx)`:
+  - **Flat mode** (dentro de `DataGridTableDndRow`): context disponível → usa valores do context (sem chamar `useSortable` com ID real)
+  - **Grouped mode** (dentro de `GroupedDndSection`): context `null` → fallback a `useSortable({ id: rowId, disabled: false })` próprio
 
 **Auto-order no backend (`ModuleController.store`):**
 - Se `order` não vier no payload: `order = MAX(order) + 1`

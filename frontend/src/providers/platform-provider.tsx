@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
-import { getUrlTenantSlug, setPlatformOverride } from '@/lib/tenant';
+import { getUrlTenantSlug } from '@/lib/tenant';
 
 export interface Platform {
   id: number;
@@ -28,8 +28,8 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
 
   const fetchPlatforms = useCallback(() => {
-    if (getUrlTenantSlug() !== 'admin') return;
-    apiGet<{ data: Platform[] }>('/v1/admin/platforms?per_page=100&sort=order&direction=asc')
+    if (getUrlTenantSlug() !== 'master') return;
+    apiGet<{ data: Platform[] }>('/v1/platforms?per_page=100&sort=order&direction=asc')
       .then((res) => setPlatforms(res.data))
       .catch(() => setPlatforms([]));
   }, []);
@@ -40,7 +40,6 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
 
   function selectPlatform(platform: Platform | null) {
     setSelectedPlatform(platform);
-    setPlatformOverride(platform ? platform.slug : null);
   }
 
   return (

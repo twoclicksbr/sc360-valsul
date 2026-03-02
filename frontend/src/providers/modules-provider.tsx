@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
-import { getTenantSlug } from '@/lib/tenant';
 import { usePlatform } from '@/providers/platform-provider';
+import { useAuth } from '@/auth/context/auth-context';
 
 export interface Module {
   id: number;
@@ -30,17 +30,21 @@ export function ModulesProvider({ children }: { children: React.ReactNode }) {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(false);
   const { selectedPlatform } = usePlatform();
+  const { auth } = useAuth();
 
   const fetchModules = useCallback(() => {
-    const tenant = getTenantSlug();
+    if (!auth?.access_token) {
+      setModules([]);
+      return;
+    }
     setLoading(true);
     apiGet<{ data: Module[] }>(
-      `/v1/${tenant}/modules?type=module&per_page=100&sort=order&direction=desc&active=true`,
+      `/v1/modules?type=module&per_page=100&sort=order&direction=desc&active=true`,
     )
       .then((res) => setModules(res.data))
       .catch(() => setModules([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [auth?.access_token]);
 
   useEffect(() => {
     fetchModules();

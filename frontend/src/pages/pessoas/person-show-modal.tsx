@@ -16,7 +16,6 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiPut } from '@/lib/api';
-import { getTenantSlug } from '@/lib/tenant';
 import { type PersonForEdit } from './person-modal';
 
 interface PersonShowModalProps {
@@ -69,7 +68,7 @@ export function PersonShowModal({ open, onOpenChange, record, onSuccess }: Perso
     if (!record) return;
     setSaving(true);
     try {
-      await apiPut(`/v1/${getTenantSlug()}/pessoas/${record.id}`, {
+      await apiPut(`/v1/pessoas/${record.id}`, {
         name,
         birth_date: birthDate || null,
         active,

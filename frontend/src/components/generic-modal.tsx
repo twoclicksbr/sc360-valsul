@@ -14,7 +14,6 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiFetch, apiGet } from '@/lib/api';
-import { getTenantSlug } from '@/lib/tenant';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -140,8 +139,6 @@ export function GenericModal({
   tabs,
   children,
 }: GenericModalProps) {
-  const tenant = getTenantSlug();
-
   // Config do módulo (name_url + after_*)
   const [moduleConfig, setModuleConfig] = useState<ModuleConfig | null>(null);
 
@@ -165,11 +162,11 @@ export function GenericModal({
   // Busca config do módulo uma vez por moduleId (ignorado quando slug vem via prop)
   useEffect(() => {
     if (slugProp) return; // bypass: slug fornecido via prop
-    if (!moduleId || !tenant) return;
-    apiGet<ModuleConfig>(`/v1/${tenant}/modules/${moduleId}`)
+    if (!moduleId) return;
+    apiGet<ModuleConfig>(`/v1/modules/${moduleId}`)
       .then(setModuleConfig)
       .catch((err) => console.error('[GenericModal] Erro ao buscar config do módulo:', err));
-  }, [slugProp, moduleId, tenant]);
+  }, [slugProp, moduleId]);
 
   // ---------------------------------------------------------------------------
   // Derivações
@@ -193,7 +190,7 @@ export function GenericModal({
     setSaving(true);
     try {
       const body   = { ...formData, active };
-      const baseUrl = `/v1/${tenant}/${resolvedSlug}`;
+      const baseUrl = `/v1/${resolvedSlug}`;
       const id      = internalRecord?.id as number | undefined;
 
       let path:   string;
@@ -265,7 +262,7 @@ export function GenericModal({
     setSaving(true);
     try {
       const res = await apiFetch(
-        `/v1/${tenant}/${resolvedSlug}/${internalRecord.id as number}`,
+        `/v1/${resolvedSlug}/${internalRecord.id as number}`,
         { method: 'DELETE' },
       );
       if (res.ok) {

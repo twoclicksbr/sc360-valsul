@@ -40,7 +40,7 @@
                         <a class="nav-link scroll" data-fancybox="" data-src="#modal-contact">Contato</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ route('login') }}">Login</a>
+                        <a class="nav-link" href="{{ env('SYSTEM_URL', 'https://master.twoclicks.com.br') }}">Login</a>
                     </li>
                 </ul>
             </nav>

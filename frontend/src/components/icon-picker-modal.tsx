@@ -257,7 +257,7 @@ export function IconPickerModal({ open, onClose, onSelect, selected }: IconPicke
 
             {/* Grid de ícones */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4">
-              <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))' }}>
+              <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(68px, 1fr))' }}>
                 {filtered.names.map(iconName => {
                   const IconComp = (LucideIcons as Record<string, unknown>)[iconName] as React.ComponentType<{ className?: string }>;
                   const isSelected = selected === iconName;
@@ -268,13 +268,13 @@ export function IconPickerModal({ open, onClose, onSelect, selected }: IconPicke
                       title={iconName}
                       onClick={() => handleSelect(iconName)}
                       className={cn(
-                        'relative flex items-center justify-center h-12 w-full rounded-md border transition-all group',
+                        'relative flex items-center justify-center h-16 w-full rounded-md border transition-all group',
                         isSelected
                           ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                           : 'border-border hover:border-primary hover:bg-primary/5 text-foreground',
                       )}
                     >
-                      <IconComp className="size-[18px]" />
+                      <IconComp className="size-[26px]" />
 
                       {/* Tooltip com nome */}
                       <span className={cn(

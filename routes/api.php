@@ -6,7 +6,7 @@ use App\Http\Controllers\System\PlatformController;
 use App\Http\Controllers\System\TenantController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/{tenant}')->group(function () {
+Route::prefix('v1')->group(function () {
 
     // Autenticação — público
     Route::middleware('resolve.tenant')->prefix('auth')->group(function () {

@@ -1,8 +1,7 @@
 import { ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { getUrlTenantSlug } from '@/lib/tenant';
-import { usePlatform } from '@/providers/platform-provider';
 import { MENU_SIDEBAR, MENU_SIDEBAR_CUSTOM } from '@/config/menu.config';
+import { useModules } from '@/providers/modules-provider';
 import { MenuConfig } from '@/config/types';
 import { cn } from '@/lib/utils';
 import { useMenu } from '@/hooks/use-menu';
@@ -36,18 +35,11 @@ export function NavbarMenu() {
 
   const { isActive, hasActiveChild } = useMenu(pathname);
 
-  const isAdmin = getUrlTenantSlug() === 'admin';
-  const { selectedPlatform } = usePlatform();
+  const { modules } = useModules();
 
   const dashboardItems = [
     { title: 'Geral', path: '/dashboard' },
-    ...(isAdmin && !selectedPlatform ? [{ title: 'Plataformas', path: '/platforms' }] : []),
-    ...(isAdmin ? [{ title: 'Empresas', path: '/tenants' }] : []),
-    { title: 'Módulos', path: '/modules' },
-    { title: 'Pessoas', path: '/pessoas' },
-    { title: 'Produtos', path: '/produtos' },
-    { title: 'Comercial', path: '/comercial' },
-    { title: 'Financeiro', path: '/financeiro' },
+    ...modules.map((mod) => ({ title: mod.name, path: `/${mod.slug}` })),
   ];
 
   const buildMenu = (items: MenuConfig) => {

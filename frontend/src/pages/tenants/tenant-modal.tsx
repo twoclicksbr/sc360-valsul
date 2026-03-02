@@ -78,7 +78,7 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
   // Carrega plataformas disponíveis ao abrir
   useEffect(() => {
     if (!open) return;
-    apiGet<{ data: Platform[] }>('/v1/admin/platforms?per_page=100&active=true')
+    apiGet<{ data: Platform[] }>('/v1/platforms?per_page=100&active=true')
       .then((res) => setPlatforms(res.data))
       .catch(() => {});
   }, [open]);
@@ -121,7 +121,7 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
         const params = new URLSearchParams({ slug });
         if (excludeId) params.set('exclude_id', String(excludeId));
         const res = await apiGet<{ available: boolean }>(
-          `/v1/admin/tenants/check-slug?${params}`,
+          `/v1/tenants/check-slug?${params}`,
         );
         setSlugStatus(res.available ? 'available' : 'unavailable');
       } catch {

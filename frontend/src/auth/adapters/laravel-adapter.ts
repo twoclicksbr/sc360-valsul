@@ -1,11 +1,8 @@
 import { AuthModel, UserModel } from '@/auth/lib/models';
-import { getUrlTenantSlug, isSandbox } from '@/lib/tenant';
+import { getUrlTenantSlug, getPlatformSlug, isSandbox } from '@/lib/tenant';
 
 function getApiUrl(): string {
-  const base = import.meta.env.VITE_API_URL as string;
-  return isSandbox()
-    ? base.replace('://api.', '://api.sandbox.')
-    : base;
+  return import.meta.env.VITE_API_URL as string;
 }
 
 interface LaravelUser {
@@ -39,6 +36,9 @@ async function apiFetch(
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'X-Tenant': getUrlTenantSlug(),
+      'X-Platform': getPlatformSlug(),
+      ...(isSandbox() ? { 'X-Sandbox': '1' } : {}),
       ...options.headers,
     },
   });
@@ -46,7 +46,7 @@ async function apiFetch(
 
 export const LaravelAdapter = {
   async login(email: string, password: string): Promise<{ auth: AuthModel; user: UserModel }> {
-    const res = await apiFetch(`/v1/${getUrlTenantSlug()}/auth/login`, {
+    const res = await apiFetch(`/v1/auth/login`, {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -63,14 +63,14 @@ export const LaravelAdapter = {
   },
 
   async logout(token: string): Promise<void> {
-    await apiFetch(`/v1/${getUrlTenantSlug()}/auth/logout`, {
+    await apiFetch(`/v1/auth/logout`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
   },
 
   async me(token: string): Promise<UserModel | null> {
-    const res = await apiFetch(`/v1/${getUrlTenantSlug()}/auth/me`, {
+    const res = await apiFetch(`/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 

@@ -1,8 +1,6 @@
 import * as LucideIcons from 'lucide-react';
 import { CircleDot, LayoutDashboard } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { getUrlTenantSlug } from '@/lib/tenant';
-import { usePlatform } from '@/providers/platform-provider';
 import { useModules } from '@/providers/modules-provider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -23,8 +21,6 @@ function DynamicIcon({ name, className }: { name: string | null; className?: str
 
 export function SidebarMenu() {
   const { pathname } = useLocation();
-  const isAdmin = getUrlTenantSlug() === 'admin';
-  const { selectedPlatform } = usePlatform();
   const { modules } = useModules();
 
   const dashboardPath = '/dashboard';
@@ -57,9 +53,6 @@ export function SidebarMenu() {
 
         {/* Itens dinâmicos da tabela modules */}
         {modules.map((mod) => {
-          if (mod.slug === 'platforms' && !(isAdmin && !selectedPlatform)) return null;
-          if (mod.slug === 'tenants' && !isAdmin) return null;
-
           const path = `/${mod.slug}`;
           const isActive = pathname === path || pathname.startsWith(path + '/');
 

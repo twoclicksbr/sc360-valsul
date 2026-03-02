@@ -33,7 +33,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
-import { getTenantSlug } from '@/lib/tenant';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,7 +137,7 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
     setColumn(fkColumn || 'none');
     setLabel(fkLabel   || 'none');
     setLoadingModules(true);
-    apiGet<{ data: ModuleOption[] }>(`/v1/${getTenantSlug()}/modules?per_page=100&sort=order&direction=desc`)
+    apiGet<{ data: ModuleOption[] }>(`/v1/modules?per_page=100&sort=order&direction=desc`)
       .then(res => setModules(res.data))
       .catch(() => {})
       .finally(() => setLoadingModules(false));
@@ -152,7 +151,7 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
     const mod = modules.find(m => m.slug === table);
     if (!mod) return;
     setLoadingFields(true);
-    apiGet<{ data: FieldOption[] }>(`/v1/${getTenantSlug()}/module-fields?module_id=${mod.id}&per_page=100&sort=order&direction=asc`)
+    apiGet<{ data: FieldOption[] }>(`/v1/module-fields?module_id=${mod.id}&per_page=100&sort=order&direction=asc`)
       .then(res => setModuleFields(res.data))
       .catch(() => {})
       .finally(() => setLoadingFields(false));
@@ -503,7 +502,6 @@ export interface ModuleFieldsTabProps {
 }
 
 export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
-  const tenant     = getTenantSlug();
   const dndId      = useId();
   const isReadOnly = mode === 'show';
 
@@ -530,12 +528,12 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
     if (!moduleId) return;
     setLoading(true);
     apiGet<{ data: Record<string, unknown>[] }>(
-      `/v1/${tenant}/module-fields?module_id=${moduleId}&per_page=200&sort=order&direction=asc`,
+      `/v1/module-fields?module_id=${moduleId}&per_page=200&sort=order&direction=asc`,
     )
       .then(res => setFields(sortFields(res.data.map(normalize))))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [moduleId, tenant]);
+  }, [moduleId]);
 
   const fieldIds    = fields.map(f => String(f.id));
   const activeField = activeId ? fields.find(f => String(f.id) === String(activeId)) : null;
@@ -553,7 +551,7 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
       debounceTimers.current.delete(id);
       const field = fieldsRef.current.find(f => f.id === id);
       if (field) {
-        apiPut(`/v1/${tenant}/module-fields/${id}`, toApiPayload(field))
+        apiPut(`/v1/module-fields/${id}`, toApiPayload(field))
           .catch(err => console.error('[ModuleFieldsTab] Erro ao atualizar campo:', err));
       }
     }, 800);
@@ -562,7 +560,7 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
 
   async function handleAdd() {
     try {
-      const saved = await apiPost<Record<string, unknown>>(`/v1/${tenant}/module-fields`, {
+      const saved = await apiPost<Record<string, unknown>>(`/v1/module-fields`, {
         module_id:   moduleId,
         name:        `campo_${Date.now()}`,
         label:       'Novo Campo',
@@ -587,7 +585,7 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
 
   async function handleDelete(id: number) {
     try {
-      await apiDelete(`/v1/${tenant}/module-fields/${id}`);
+      await apiDelete(`/v1/module-fields/${id}`);
       setFields(prev => prev.filter(f => f.id !== id));
     } catch (err) {
       console.error('[ModuleFieldsTab] Erro ao deletar campo:', err);
@@ -629,13 +627,13 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
 
     try {
       await Promise.all(
-        changed.map(f => apiPut(`/v1/${tenant}/module-fields/${f.id}`, { order: f.order })),
+        changed.map(f => apiPut(`/v1/module-fields/${f.id}`, { order: f.order })),
       );
     } catch (err) {
       console.error('[ModuleFieldsTab] Erro ao reordenar campos:', err);
       // rollback: recarrega do banco
       apiGet<{ data: Record<string, unknown>[] }>(
-        `/v1/${tenant}/module-fields?module_id=${moduleId}&per_page=200&sort=order&direction=asc`,
+        `/v1/module-fields?module_id=${moduleId}&per_page=200&sort=order&direction=asc`,
       ).then(res => setFields(sortFields(res.data.map(normalize)))).catch(() => {});
     }
   }

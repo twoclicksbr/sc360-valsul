@@ -1,43 +1,31 @@
-// Slug override set by PlatformProvider when a platform is selected.
-// When non-null, getTenantSlug() returns this instead of the URL-derived slug.
-let _platformOverride: string | null = null;
+// Padrão de URL frontend: {tenant}.{platform-domain}
+// Exemplos:
+//   master.twoclicks.test      → tenant=master
+//   valsul.smartclick360.test  → tenant=valsul
+//
+// O platform-slug é lido de VITE_PLATFORM_SLUG (definido por deployment).
+// Usado para construir a URL da API: {tenant}.{platform-slug}.api.{VITE_API_BASE_DOMAIN}
 
-export function setPlatformOverride(slug: string | null): void {
-  _platformOverride = slug;
-}
-
-// Reads the tenant slug from the URL only — never affected by platform override.
-// Used by auth calls (login/logout/me) that must always target the current tenant.
+// Lê o tenant do primeiro subdomínio do hostname atual.
 export function getUrlTenantSlug(): string {
-  const hostname = window.location.hostname;
-  const parts = hostname.split('.');
+  const parts = window.location.hostname
+    .split('.')
+    .filter((p) => p !== 'sandbox');
 
-  // Remove segmento 'sandbox' se presente: valsul.sandbox.tc.test → valsul
-  const filtered = parts.filter((p) => p !== 'sandbox');
-
-  if (filtered.length >= 3) {
-    // valsul.tc.test → 'valsul'   |   admin.tc.test → 'admin'
-    return filtered[0];
-  }
-
-  if (filtered.length === 2) {
-    // Domínio base sem subdomínio (tc.test, twoclicks.com.br) → admin
-    return 'admin';
-  }
-
-  // filtered.length === 1 → localhost ou similar
-  const slug = import.meta.env.VITE_TENANT_SLUG as string;
-  if (!slug) {
-    console.error('[getTenantSlug] VITE_TENANT_SLUG não definido no .env');
-    return '';
-  }
-  return slug;
+  // master.twoclicks.test → parts = ['master', 'twoclicks', 'test'] → 'master'
+  // twoclicks.test (sem subdomínio) → parts = ['twoclicks', 'test'] → 'master' (fallback)
+  return parts.length >= 3 ? parts[0] : 'master';
 }
 
-// Returns the active tenant slug for module/CRUD API calls.
-// When a platform is selected via PlatformProvider, returns its slug instead.
+// Retorna o slug da platform configurado via env.
+// Cada deployment define seu próprio VITE_PLATFORM_SLUG (ex: tc, sc360, b360).
+export function getPlatformSlug(): string {
+  return (import.meta.env.VITE_PLATFORM_SLUG as string) || 'tc';
+}
+
+// Retorna o tenant ativo para chamadas de API.
+// Mantido para compatibilidade com paths /v1/{tenant}/... (será removido em fase futura).
 export function getTenantSlug(): string {
-  if (_platformOverride !== null) return _platformOverride;
   return getUrlTenantSlug();
 }
 

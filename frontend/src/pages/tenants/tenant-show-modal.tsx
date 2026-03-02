@@ -134,7 +134,7 @@ export function TenantShowModal({ open, onOpenChange, record, platforms, onSucce
       try {
         const params = new URLSearchParams({ slug });
         if (record?.id) params.set('exclude_id', String(record.id));
-        const res = await apiGet<{ available: boolean }>(`/v1/admin/tenants/check-slug?${params}`);
+        const res = await apiGet<{ available: boolean }>(`/v1/tenants/check-slug?${params}`);
         setSlugStatus(res.available ? 'available' : 'unavailable');
       } catch {
         setSlugStatus('idle');
@@ -148,7 +148,7 @@ export function TenantShowModal({ open, onOpenChange, record, platforms, onSucce
     if (!record) return null;
     setLoadingCreds(true);
     try {
-      const data = await apiGet<TenantCredentials>(`/v1/admin/tenants/${record.id}/credentials`);
+      const data = await apiGet<TenantCredentials>(`/v1/tenants/${record.id}/credentials`);
       setCredentials(data);
       return data;
     } catch {
@@ -184,7 +184,7 @@ export function TenantShowModal({ open, onOpenChange, record, platforms, onSucce
     if (!record) return;
     setSaving(true);
     try {
-      await apiPut(`/v1/admin/tenants/${record.id}`, { platform_id: platformId, name, slug, expiration_date: expirationDate, active });
+      await apiPut(`/v1/tenants/${record.id}`, { platform_id: platformId, name, slug, expiration_date: expirationDate, active });
       onSuccess();
       onOpenChange(false);
     } catch (err: unknown) {

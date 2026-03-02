@@ -19,7 +19,7 @@ class PlatformObserver
 
         // Sempre deriva do slug para garantir consistência
         $base = str_replace('-', '_', $platform->slug);
-        $platform->db_name = $base . '_main';
+        $platform->db_name = $base . '_master';
 
         if (empty($platform->sand_user)) {
             $platform->sand_user = 'sand_' . $base;

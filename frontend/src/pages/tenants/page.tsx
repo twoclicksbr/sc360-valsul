@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Building2, CalendarIcon } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { type DateRange } from 'react-day-picker';
 import { GenericGrid } from '@/components/generic-grid';
 import { TenantModal } from './tenant-modal';
@@ -24,7 +24,7 @@ export function TenantsPage() {
   const [validityRange, setValidityRange] = useState<DateRange | undefined>(undefined);
 
   useEffect(() => {
-    apiGet<{ data: Platform[] }>('/v1/admin/platforms?per_page=100&active=true')
+    apiGet<{ data: Platform[] }>('/v1/platforms?per_page=100&active=true')
       .then((res) => setPlatforms(res.data))
       .catch(() => {});
   }, []);
@@ -143,7 +143,6 @@ export function TenantsPage() {
           },
         },
       ]}
-      icon={Building2}
       modalComponent={TenantModal}
       showActionShow={false}
       showActionRestore={false}

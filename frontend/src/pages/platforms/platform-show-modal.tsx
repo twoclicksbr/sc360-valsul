@@ -85,6 +85,7 @@ function formatExpiration(v: string | null | undefined): React.ReactNode {
 export function PlatformShowModal({ open, onOpenChange, record, onSuccess }: PlatformShowModalProps) {
   const [name, setName]                 = useState('');
   const [domain, setDomain]             = useState('');
+  const [domainLocal, setDomainLocal]   = useState('');
   const [slug, setSlug]                 = useState('');
   const [slugManual, setSlugManual]     = useState(false);
   const [slugStatus, setSlugStatus]     = useState<SlugStatus>('idle');
@@ -105,6 +106,7 @@ export function PlatformShowModal({ open, onOpenChange, record, onSuccess }: Pla
     if (open && record) {
       setName(record.name);
       setDomain(record.domain ?? '');
+      setDomainLocal(record.domain_local ?? '');
       setSlug(record.slug);
       setSlugManual(true);
       setExpirationDate(record.expiration_date?.split('T')[0] ?? '');
@@ -127,7 +129,7 @@ export function PlatformShowModal({ open, onOpenChange, record, onSuccess }: Pla
       try {
         const params = new URLSearchParams({ slug });
         if (record?.id) params.set('exclude_id', String(record.id));
-        const res = await apiGet<{ available: boolean }>(`/v1/admin/platforms/check-slug?${params}`);
+        const res = await apiGet<{ available: boolean }>(`/v1/platforms/check-slug?${params}`);
         setSlugStatus(res.available ? 'available' : 'unavailable');
       } catch {
         setSlugStatus('idle');
@@ -141,7 +143,7 @@ export function PlatformShowModal({ open, onOpenChange, record, onSuccess }: Pla
     if (!record) return null;
     setLoadingCreds(true);
     try {
-      const data = await apiGet<PlatformCredentials>(`/v1/admin/platforms/${record.id}/credentials`);
+      const data = await apiGet<PlatformCredentials>(`/v1/platforms/${record.id}/credentials`);
       setCredentials(data);
       return data;
     } catch {
@@ -177,7 +179,7 @@ export function PlatformShowModal({ open, onOpenChange, record, onSuccess }: Pla
     if (!record) return;
     setSaving(true);
     try {
-      await apiPut(`/v1/admin/platforms/${record.id}`, { name, domain, slug, expiration_date: expirationDate, active });
+      await apiPut(`/v1/platforms/${record.id}`, { name, domain, domain_local: domainLocal || null, slug, expiration_date: expirationDate, active });
       onSuccess();
       onOpenChange(false);
     } catch (err: unknown) {
@@ -269,8 +271,8 @@ export function PlatformShowModal({ open, onOpenChange, record, onSuccess }: Pla
                 <TabsContent value="overview" className="flex flex-col flex-1 pt-6 px-6 pb-0">
                   <div className="flex flex-col gap-4 flex-1">
 
-                    {/* Nome + Domínio + Slug + Validade — mesma linha */}
-                    <div className="grid grid-cols-4 gap-4">
+                    {/* Nome + Domínio + Domínio Local + Slug + Validade — mesma linha */}
+                    <div className="grid grid-cols-5 gap-4">
                       <div className="flex flex-col gap-1.5">
                         <Label htmlFor="show-name">
                           Nome <span className="text-destructive">*</span>
@@ -300,6 +302,22 @@ export function PlatformShowModal({ open, onOpenChange, record, onSuccess }: Pla
                         </InputGroup>
                         {errors.domain && (
                           <p className="text-sm text-destructive">{errors.domain[0]}</p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="show-domain-local">Domínio Local</Label>
+                        <InputGroup>
+                          <InputAddon>http://</InputAddon>
+                          <Input
+                            id="show-domain-local"
+                            value={domainLocal}
+                            onChange={(e) => setDomainLocal(e.target.value)}
+                            placeholder="ex: twoclicks.test"
+                          />
+                        </InputGroup>
+                        {errors.domain_local && (
+                          <p className="text-sm text-destructive">{errors.domain_local[0]}</p>
                         )}
                       </div>
 

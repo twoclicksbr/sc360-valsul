@@ -1,5 +1,4 @@
-import { CSSProperties, ReactNode, useCallback, useId, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { createContext, CSSProperties, ReactNode, useCallback, useId } from 'react';
 import { useDataGrid } from '@/components/ui/data-grid';
 import {
   DataGridTableBase,
@@ -23,6 +22,7 @@ import {
   MouseSensor,
   TouchSensor,
   UniqueIdentifier,
+  useDndContext,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -32,22 +32,16 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Cell, flexRender, HeaderGroup, Row } from '@tanstack/react-table';
-import { GripHorizontal } from 'lucide-react';
 
-function DataGridTableDndRowHandle({ rowId }: { rowId: string }) {
-  const { attributes, listeners } = useSortable({
-    id: rowId,
-  });
+// Context so DragHandle (in generic-grid) can read listeners/attributes/isDragging
+// from the parent DataGridTableDndRow without calling useSortable a second time with the same ID.
+type RowDndContextValue = Pick<ReturnType<typeof useSortable>, 'attributes' | 'listeners' | 'isDragging'>;
 
-  return (
-    <Button variant="dim" size="sm" className="size-7" {...attributes} {...listeners}>
-      <GripHorizontal />
-    </Button>
-  );
-}
+// Exported so DragHandle can consume it directly via useContext
+export const RowDndCtx = createContext<RowDndContextValue | null>(null);
 
 function DataGridTableDndRow<TData>({ row }: { row: Row<TData> }) {
-  const { transform, setNodeRef, isDragging } = useSortable({
+  const { transform, setNodeRef, isDragging, attributes, listeners } = useSortable({
     id: String((row.original as Record<string, unknown>).id),
   });
 
@@ -59,15 +53,30 @@ function DataGridTableDndRow<TData>({ row }: { row: Row<TData> }) {
   };
 
   return (
-    <DataGridTableBodyRow row={row} dndRef={setNodeRef} dndStyle={style} key={row.id}>
-      {row.getVisibleCells().map((cell: Cell<TData, unknown>, colIndex) => {
-        return (
-          <DataGridTableBodyRowCell cell={cell} key={colIndex}>
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </DataGridTableBodyRowCell>
-        );
-      })}
-    </DataGridTableBodyRow>
+    <RowDndCtx.Provider value={{ attributes, listeners, isDragging }}>
+      <DataGridTableBodyRow row={row} dndRef={setNodeRef} dndStyle={style} key={row.id}>
+        {row.getVisibleCells().map((cell: Cell<TData, unknown>, colIndex) => {
+          return (
+            <DataGridTableBodyRowCell cell={cell} key={colIndex}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </DataGridTableBodyRowCell>
+          );
+        })}
+      </DataGridTableBodyRow>
+    </RowDndCtx.Provider>
+  );
+}
+
+function FlatDndOverlay({
+  renderDragOverlay,
+}: {
+  renderDragOverlay?: (activeId: UniqueIdentifier | null) => ReactNode;
+}) {
+  const { active } = useDndContext();
+  return (
+    <DragOverlay dropAnimation={null}>
+      {active && renderDragOverlay ? renderDragOverlay(active.id) : null}
+    </DragOverlay>
   );
 }
 
@@ -85,29 +94,19 @@ function DataGridTableDndRows<TData>({
   const { table, isLoading, props } = useDataGrid();
   const pagination = table.getState().pagination;
   const id = useId();
-  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 
   const sensors = useSensors(useSensor(MouseSensor, {}), useSensor(TouchSensor, {}), useSensor(KeyboardSensor, {}));
 
-  const internalHandleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      setActiveId(event.active.id);
-      onDragStart?.(event);
-    },
-    [onDragStart],
-  );
-
   const internalHandleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setActiveId(null);
       // Fire-and-forget — não usar await aqui
       void handleDragEnd(event);
+      (document.activeElement as HTMLElement)?.blur();
     },
     [handleDragEnd],
   );
 
   const internalHandleDragCancel = useCallback(() => {
-    setActiveId(null);
     (document.activeElement as HTMLElement)?.blur();
   }, []);
 
@@ -116,7 +115,7 @@ function DataGridTableDndRows<TData>({
       id={id}
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
-      onDragStart={internalHandleDragStart}
+      onDragStart={onDragStart}
       onDragEnd={internalHandleDragEnd}
       onDragCancel={internalHandleDragCancel}
       sensors={sensors}
@@ -172,13 +171,9 @@ function DataGridTableDndRows<TData>({
         </DataGridTableBase>
       </div>
 
-      {renderDragOverlay && (
-        <DragOverlay dropAnimation={null}>
-          {activeId !== null ? renderDragOverlay(activeId) : null}
-        </DragOverlay>
-      )}
+      {renderDragOverlay && <FlatDndOverlay renderDragOverlay={renderDragOverlay} />}
     </DndContext>
   );
 }
 
-export { DataGridTableDndRowHandle, DataGridTableDndRows };
+export { DataGridTableDndRows };

@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import { LayoutGrid } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Container } from '@/components/common/container';
 import { GenericGrid } from '@/components/generic-grid';
@@ -103,9 +102,7 @@ export function ModulesPage() {
     <ModuleInlineCtx.Provider value={handleGoInline}>
       <GenericGrid
         key={gridKey}
-        slug="modules"
-        title="Módulos"
-        icon={LayoutGrid}
+        moduleId={1}
         columns={[
           {
             key: 'name',

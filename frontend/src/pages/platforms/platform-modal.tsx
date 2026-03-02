@@ -9,6 +9,7 @@ export interface PlatformForEdit {
   id: number;
   name: string;
   domain: string;
+  domain_local?: string | null;
   slug: string;
   db_name: string;
   sand_user?: string;
@@ -62,6 +63,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
 
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
+  const [domainLocal, setDomainLocal] = useState('');
   const [slug, setSlug] = useState('');
   const [slugManual, setSlugManual] = useState(false);
   const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
@@ -75,12 +77,14 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
       if (record) {
         setName(record.name);
         setDomain(record.domain ?? '');
+        setDomainLocal(record.domain_local ?? '');
         setSlug(record.slug);
         setSlugManual(true);
         setExpirationDate(record.expiration_date?.split('T')[0] ?? defaultExpiration());
       } else {
         setName('');
         setDomain('');
+        setDomainLocal('');
         setSlug('');
         setSlugManual(false);
         setExpirationDate(defaultExpiration());
@@ -106,7 +110,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
         const params = new URLSearchParams({ slug });
         if (excludeId) params.set('exclude_id', String(excludeId));
         const res = await apiGet<{ available: boolean }>(
-          `/v1/admin/platforms/check-slug?${params}`,
+          `/v1/platforms/check-slug?${params}`,
         );
         setSlugStatus(res.available ? 'available' : 'unavailable');
       } catch {
@@ -132,7 +136,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
 
   function handleGetData(): Record<string, unknown> | null {
     if (slugStatus === 'checking' || slugStatus === 'unavailable') return null;
-    return { name, domain, slug, expiration_date: expirationDate };
+    return { name, domain, domain_local: domainLocal || null, slug, expiration_date: expirationDate };
   }
 
   function handleErrors(errs: Record<string, string[]>) {
@@ -197,6 +201,22 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
             </InputGroup>
             {errors.domain && (
               <p className="text-sm text-destructive">{errors.domain[0]}</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="platform-domain-local">Domínio Local</Label>
+            <InputGroup>
+              <InputAddon>http://</InputAddon>
+              <Input
+                id="platform-domain-local"
+                value={domainLocal}
+                onChange={(e) => setDomainLocal(e.target.value)}
+                placeholder="ex: twoclicks.test"
+              />
+            </InputGroup>
+            {errors.domain_local && (
+              <p className="text-sm text-destructive">{errors.domain_local[0]}</p>
             )}
           </div>
 

@@ -394,11 +394,11 @@ export function AppRoutingSetup() {
             element={<AllProductsPage />}
           />
           <Route path="/auth/get-started" element={<AccountGetStartedPage />} />
-          {getTenantSlug() === 'admin'
+          {getTenantSlug() === 'master'
             ? <Route path="/tenants" element={<TenantsPage />} />
             : <Route path="/tenants" element={<Navigate to="/dashboard" />} />
           }
-          {getTenantSlug() === 'admin'
+          {getTenantSlug() === 'master'
             ? <Route path="/platforms" element={<PlatformsPage />} />
             : <Route path="/platforms" element={<Navigate to="/dashboard" />} />
           }

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { usePlatform } from '@/providers/platform-provider';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Layers } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { type DateRange } from 'react-day-picker';
 import { GenericGrid } from '@/components/generic-grid';
 import { PlatformModal } from './platform-modal';
@@ -93,7 +93,17 @@ export function PlatformsPage() {
             </button>
           ),
         },
-        { key: 'domain',  label: 'Domínio', sortable: true, meta: { style: { width: '18%' } } },
+        {
+          key: 'domain', label: 'Domínio', sortable: true, meta: { style: { width: '18%' } },
+          render: (_value, record) => (
+            <div className="flex flex-col leading-tight">
+              <span>{record.domain as string}</span>
+              {record.domain_local && (
+                <span className="text-xs text-muted-foreground">{record.domain_local as string}</span>
+              )}
+            </div>
+          ),
+        },
         { key: 'slug',    label: 'Slug',  sortable: true, meta: { style: { width: '12%' } }, render: (v) => <Badge variant="info" appearance="light">{String(v ?? '—')}</Badge> },
         { key: 'db_name', label: 'Banco',                meta: { style: { width: '12%' } }, render: (v) => <Badge variant="info" appearance="light">{String(v ?? '—')}</Badge> },
         {
@@ -125,7 +135,6 @@ export function PlatformsPage() {
           },
         },
       ]}
-      icon={Layers}
       modalComponent={PlatformModal}
       showActionShow={false}
       showActionRestore={false}

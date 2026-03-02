@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Users } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { type DateRange } from 'react-day-picker';
 import { GenericGrid } from '@/components/generic-grid';
 import { PersonModal } from './person-modal';
@@ -92,7 +92,6 @@ export function PessoasPage() {
         },
         { key: 'birth_date', label: 'Nascimento', type: 'date', sortable: true, meta: { style: { width: '15%' } } },
       ]}
-      icon={Users}
       modalComponent={PersonModal}
       showActionShow={false}
       onDataLoad={handleDataLoad}

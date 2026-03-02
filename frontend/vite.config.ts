@@ -18,6 +18,6 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     https: false,
-    allowedHosts: ['tc.test', '.tc.test', '.sandbox.tc.test'],
+    allowedHosts: ['tc.test', '.tc.test', 'twoclicks.test', '.twoclicks.test'],
   },
 });

@@ -22,7 +22,6 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { apiGet, apiPut } from '@/lib/api';
-import { getTenantSlug } from '@/lib/tenant';
 import { useModules } from '@/providers/modules-provider';
 import { type ModuleForEdit } from './module-modal';
 import { ModuleFieldsTab } from './module-fields-tab';
@@ -163,7 +162,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
       return;
     }
     if (!moduleId) return;
-    apiGet<{ name: string; icon: string | null }>(`/v1/${getTenantSlug()}/modules/${moduleId}`)
+    apiGet<{ name: string; icon: string | null }>(`/v1/modules/${moduleId}`)
       .then((res) => setParentModule({ name: res.name, icon: res.icon }))
       .catch(() => {});
   }, [inline, moduleId, parentName, parentIcon]);
@@ -171,7 +170,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
   // Scan de Models e Requests disponíveis
   useEffect(() => {
     if (!open && !inline) return;
-    apiGet<ScanFiles>(`/v1/${getTenantSlug()}/modules/scan-files`)
+    apiGet<ScanFiles>(`/v1/modules/scan-files`)
       .then(setScanFiles)
       .catch(() => {});
   }, [open, inline]);
@@ -180,7 +179,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
   useEffect(() => {
     if ((!open && !inline) || type !== 'module') { setSubmodules([]); return; }
     apiGet<{ data: Array<{ id: number; name: string; icon: string | null }> }>(
-      `/v1/${getTenantSlug()}/modules?type=submodule&per_page=100&active=true&sort=order&direction=desc`,
+      `/v1/modules?type=submodule&per_page=100&active=true&sort=order&direction=desc`,
     )
       .then((res) => setSubmodules(res.data))
       .catch(() => {});
@@ -193,14 +192,13 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
 
     setSlugStatus('checking');
     const excludeId = record?.id;
-    const tenant    = getTenantSlug();
 
     const timer = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ slug });
         if (excludeId) params.set('exclude_id', String(excludeId));
         const res = await apiGet<{ available: boolean }>(
-          `/v1/${tenant}/modules/check-slug?${params}`,
+          `/v1/modules/check-slug?${params}`,
         );
         setSlugStatus(res.available ? 'available' : 'unavailable');
       } catch {
@@ -233,7 +231,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
     if (slugStatus === 'checking' || slugStatus === 'unavailable') return;
     setSaving(true);
     try {
-      await apiPut(`/v1/${getTenantSlug()}/modules/${record.id}`, {
+      await apiPut(`/v1/modules/${record.id}`, {
         name,
         slug,
         url_prefix: urlPrefix || null,

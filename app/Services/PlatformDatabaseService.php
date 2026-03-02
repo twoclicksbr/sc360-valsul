@@ -96,31 +96,60 @@ class PlatformDatabaseService
             $setup->statement("ALTER DEFAULT PRIVILEGES IN SCHEMA prod GRANT ALL ON TABLES TO \"{$prodUser}\"");
             $setup->statement("ALTER DEFAULT PRIVILEGES IN SCHEMA log GRANT ALL ON TABLES TO \"{$logUser}\"");
 
+            $setup->statement("ALTER DEFAULT PRIVILEGES IN SCHEMA sand GRANT ALL ON SEQUENCES TO \"{$sandUser}\"");
+            $setup->statement("ALTER DEFAULT PRIVILEGES IN SCHEMA prod GRANT ALL ON SEQUENCES TO \"{$prodUser}\"");
+            $setup->statement("ALTER DEFAULT PRIVILEGES IN SCHEMA log GRANT ALL ON SEQUENCES TO \"{$logUser}\"");
+
+            // f. Garantir acesso em tabelas/sequences já existentes (idempotente para re-runs)
+            $setup->statement("GRANT ALL ON ALL TABLES IN SCHEMA sand TO \"{$sandUser}\"");
+            $setup->statement("GRANT ALL ON ALL SEQUENCES IN SCHEMA sand TO \"{$sandUser}\"");
+            $setup->statement("GRANT ALL ON ALL TABLES IN SCHEMA prod TO \"{$prodUser}\"");
+            $setup->statement("GRANT ALL ON ALL SEQUENCES IN SCHEMA prod TO \"{$prodUser}\"");
+            $setup->statement("GRANT ALL ON ALL TABLES IN SCHEMA log TO \"{$logUser}\"");
+            $setup->statement("GRANT ALL ON ALL SEQUENCES IN SCHEMA log TO \"{$logUser}\"");
+
             DB::purge('platform_setup');
 
             // 5. Configurar conexões dinâmicas
             $this->configurePlatformConnections($dbName, $sandUser, $sandPass, $prodUser, $prodPass, $logUser, $logPass);
 
-            // 6. Migrations de tenant em sand e prod
-            Artisan::call('migrate', [
-                '--database' => 'platform_sand',
-                '--path'     => 'database/migrations/tenant',
-                '--force'    => true,
-            ]);
-            Artisan::call('migrate', [
-                '--database' => 'platform_prod',
-                '--path'     => 'database/migrations/tenant',
-                '--force'    => true,
-            ]);
+            // 6. Migrations
+            if ($dbCreated) {
+                // Banco recém-criado: roda tudo (sand + prod + log)
+                Artisan::call('migrate', [
+                    '--database' => 'platform_sand',
+                    '--path'     => 'database/migrations/tenant',
+                    '--force'    => true,
+                ]);
+                Artisan::call('migrate', [
+                    '--database' => 'platform_prod',
+                    '--path'     => 'database/migrations/tenant',
+                    '--force'    => true,
+                ]);
+                Artisan::call('migrate', [
+                    '--database' => 'platform_log',
+                    '--path'     => 'database/migrations/log',
+                    '--force'    => true,
+                ]);
+            } else {
+                // Banco já existia: prod é gerenciado pelo migrate:fresh (main); roda apenas sand e log
+                Artisan::call('migrate', [
+                    '--database' => 'platform_sand',
+                    '--path'     => 'database/migrations/tenant',
+                    '--force'    => true,
+                ]);
+                Artisan::call('migrate', [
+                    '--database' => 'platform_log',
+                    '--path'     => 'database/migrations/log',
+                    '--force'    => true,
+                ]);
+            }
 
-            // 7. Migration de log
-            Artisan::call('migrate', [
-                '--database' => 'platform_log',
-                '--path'     => 'database/migrations/log',
-                '--force'    => true,
-            ]);
+            // 8. Criar person + user admin em sand e prod (apenas quando banco criado agora)
+            if (! $dbCreated) {
+                return;
+            }
 
-            // 8. Criar person + user admin em sand e prod
             $today = now()->toDateString();
 
             $sandPerson = Person::on('platform_sand')->create([

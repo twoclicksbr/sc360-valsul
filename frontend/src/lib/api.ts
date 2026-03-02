@@ -1,11 +1,8 @@
 import { getAuth } from '@/auth/lib/helpers';
-import { isSandbox } from '@/lib/tenant';
+import { getUrlTenantSlug, getPlatformSlug, isSandbox } from '@/lib/tenant';
 
 function getApiUrl(): string {
-  const base = import.meta.env.VITE_API_URL as string;
-  return isSandbox()
-    ? base.replace('://api.', '://api.sandbox.')
-    : base;
+  return import.meta.env.VITE_API_URL as string;
 }
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -17,6 +14,9 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'X-Tenant': getUrlTenantSlug(),
+      'X-Platform': getPlatformSlug(),
+      ...(isSandbox() ? { 'X-Sandbox': '1' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {}),
     },

@@ -1,4 +1,4 @@
-import React, { CSSProperties, Fragment, type ComponentType, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { CSSProperties, Fragment, type ComponentType, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   type Cell,
@@ -42,6 +42,7 @@ import {
   Search,
   SearchX,
 } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { type DateRange } from 'react-day-picker';
@@ -68,7 +69,7 @@ import {
   DataGridTableHeadRowCell,
   DataGridTableRowSpacer,
 } from '@/components/ui/data-grid-table';
-import { DataGridTableDndRows } from '@/components/ui/data-grid-table-dnd-rows';
+import { DataGridTableDndRows, RowDndCtx } from '@/components/ui/data-grid-table-dnd-rows';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
@@ -86,7 +87,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { apiGet, apiPut } from '@/lib/api';
-import { getTenantSlug } from '@/lib/tenant';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,6 +98,7 @@ interface ModuleConfig {
   id: number;
   name: string;
   slug: string;
+  icon?: string | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -206,7 +207,11 @@ function parseWidthPx(width?: string): number | undefined {
 
 
 function DragHandle({ rowId }: { rowId: string }) {
-  const { attributes, listeners, isDragging } = useSortable({ id: rowId });
+  const ctx = useContext(RowDndCtx);
+  // Flat mode: ctx provided by DataGridTableDndRow (same useSortable id — no duplicate)
+  // Grouped mode: ctx is null, fall back to own useSortable call
+  const fallback = useSortable({ id: rowId, disabled: ctx !== null });
+  const { attributes, listeners, isDragging } = ctx ?? fallback;
   const [tooltipOpen, setTooltipOpen] = useState(false);
   return (
     <TooltipProvider>
@@ -562,7 +567,6 @@ export function GenericGrid({
   groupByCompute,
   groupByLevel1Labels,
 }: GenericGridProps) {
-  const tenant = getTenantSlug();
   const effectiveShowDrag = showDrag;
   const onDataLoadRef = useRef(onDataLoad);
   onDataLoadRef.current = onDataLoad;
@@ -619,11 +623,11 @@ export function GenericGrid({
 
   useEffect(() => {
     if (slugProp) return; // bypass: slug fornecido via prop, não precisa buscar
-    if (!moduleId || !tenant) return;
-    apiGet<ModuleConfig>(`/v1/${tenant}/modules/${moduleId}`)
+    if (!moduleId) return;
+    apiGet<ModuleConfig>(`/v1/modules/${moduleId}`)
       .then(setModuleConfig)
       .catch((err) => console.error('[GenericGrid] Erro ao buscar config do módulo:', err));
-  }, [slugProp, moduleId, tenant]);
+  }, [slugProp, moduleId]);
 
   // ---------------------------------------------------------------------------
   // Data fetch
@@ -644,7 +648,7 @@ export function GenericGrid({
         ...activeFilters,
       });
       const res = await apiGet<{ data: AnyRecord[]; meta: { total: number } }>(
-        `/v1/${tenant}/${resolvedSlug}?${params.toString()}`,
+        `/v1/${resolvedSlug}?${params.toString()}`,
       );
       setData(res.data);
       setTotal(res.meta.total);
@@ -654,7 +658,7 @@ export function GenericGrid({
     } finally {
       setIsLoading(false);
     }
-  }, [resolvedSlug, pagination, sorting, tenant, activeFilters]);
+  }, [resolvedSlug, pagination, sorting, activeFilters]);
 
   useEffect(() => {
     fetchData();
@@ -708,7 +712,7 @@ export function GenericGrid({
       try {
         await Promise.all(
           changedItems.map((item) =>
-            apiPut<unknown>(`/v1/${tenant}/${resolvedSlug}/${item.id as number}`, item),
+            apiPut<unknown>(`/v1/${resolvedSlug}/${item.id as number}`, item),
           ),
         );
       } catch (err) {
@@ -717,7 +721,7 @@ export function GenericGrid({
         fetchData();
       }
     },
-    [data, total, pagination, fetchData, tenant, resolvedSlug],
+    [data, total, pagination, fetchData, resolvedSlug],
   );
 
   const handleGroupedDragEnd = useCallback(
@@ -739,7 +743,7 @@ export function GenericGrid({
       try {
         await Promise.all(
           changedItems.map((item) =>
-            apiPut<unknown>(`/v1/${tenant}/${resolvedSlug}/${item.id as number}`, item),
+            apiPut<unknown>(`/v1/${resolvedSlug}/${item.id as number}`, item),
           ),
         );
       } catch (err) {
@@ -748,7 +752,7 @@ export function GenericGrid({
         fetchData();
       }
     },
-    [data, total, pagination, fetchData, tenant, resolvedSlug],
+    [data, total, pagination, fetchData, resolvedSlug],
   );
 
   // ---------------------------------------------------------------------------
@@ -763,7 +767,7 @@ export function GenericGrid({
       try {
         await Promise.all(
           selectedItems.map((item) =>
-            apiPut<unknown>(`/v1/${tenant}/${resolvedSlug}/${item.id as number}`, {
+            apiPut<unknown>(`/v1/${resolvedSlug}/${item.id as number}`, {
               ...item,
               active: activeValue,
             }),
@@ -776,7 +780,7 @@ export function GenericGrid({
         fetchData();
       }
     },
-    [resolvedSlug, rowSelection, data, tenant, fetchData],
+    [resolvedSlug, rowSelection, data, fetchData],
   );
 
   // ---------------------------------------------------------------------------
@@ -985,8 +989,7 @@ export function GenericGrid({
     [data],
   );
 
-  // Overlay para modo não-agrupado: activeId = database record id
-  const renderDragOverlay = useCallback(
+  const buildDragOverlayContent = useCallback(
     (activeId: UniqueIdentifier | null) => {
       if (activeId === null) return null;
       const item = data.find((d) => String(d.id) === String(activeId));
@@ -994,33 +997,26 @@ export function GenericGrid({
       const col0 = columnConfigs[0];
       const col1 = columnConfigs[1];
       return (
-        <div className="flex items-center gap-2 bg-background border rounded-md shadow-xl px-3 py-2 text-sm cursor-grabbing">
-          <GripVertical className="size-4 text-muted-foreground shrink-0" />
-          {col0 && <span className="font-medium">{String(item[col0.key] ?? '')}</span>}
-          {col1 && <span className="text-muted-foreground text-xs">{String(item[col1.key] ?? '')}</span>}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'grabbing', minWidth: '200px', color: '#0f172a' }}>
+          <GripVertical style={{ width: '16px', height: '16px', color: '#94a3b8', flexShrink: 0 }} />
+          {col0 && <span style={{ fontWeight: 500 }}>{String(item[col0.key] ?? '')}</span>}
+          {col1 && <span style={{ color: '#64748b', fontSize: '0.75rem', marginLeft: '4px' }}>{String(item[col1.key] ?? '')}</span>}
         </div>
       );
     },
     [data, columnConfigs],
   );
 
+  // Overlay para modo não-agrupado: activeId = database record id
+  const renderDragOverlay = useCallback(
+    (activeId: UniqueIdentifier | null) => buildDragOverlayContent(activeId),
+    [buildDragOverlayContent],
+  );
+
   // Overlay para modo agrupado: activeId = database record id
   const renderGroupedDragOverlay = useCallback(
-    (activeId: UniqueIdentifier | null) => {
-      if (activeId === null) return null;
-      const item = data.find((d) => String(d.id) === String(activeId));
-      if (!item) return null;
-      const col0 = columnConfigs[0];
-      const col1 = columnConfigs[1];
-      return (
-        <div className="flex items-center gap-2 bg-background border rounded-md shadow-xl px-3 py-2 text-sm cursor-grabbing">
-          <GripVertical className="size-4 text-muted-foreground shrink-0" />
-          {col0 && <span className="font-medium">{String(item[col0.key] ?? '')}</span>}
-          {col1 && <span className="text-muted-foreground text-xs">{String(item[col1.key] ?? '')}</span>}
-        </div>
-      );
-    },
-    [data, columnConfigs],
+    (activeId: UniqueIdentifier | null) => buildDragOverlayContent(activeId),
+    [buildDragOverlayContent],
   );
 
   // ---------------------------------------------------------------------------
@@ -1034,13 +1030,19 @@ export function GenericGrid({
   // Render
   // ---------------------------------------------------------------------------
 
+  const IconToRender: React.ComponentType<{ className?: string }> | null =
+    Icon ??
+    (moduleConfig?.icon
+      ? ((LucideIcons as Record<string, unknown>)[moduleConfig.icon] as React.ComponentType<{ className?: string }> | undefined) ?? null
+      : null);
+
   return (
     <>
       <Container>
         {/* Cabeçalho da página */}
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-xl font-semibold flex items-center gap-2">
-            {Icon && <Icon className="size-6" />}
+            {IconToRender && <IconToRender className="size-6" />}
             {resolvedTitle}
           </h1>
           <div className="flex items-center gap-2">

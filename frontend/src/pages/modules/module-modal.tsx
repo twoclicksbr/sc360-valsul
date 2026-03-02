@@ -4,7 +4,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GenericModal } from '@/components/generic-modal';
 import { apiGet } from '@/lib/api';
-import { getTenantSlug } from '@/lib/tenant';
 import { useModules } from '@/providers/modules-provider';
 import { ModuleShowModal } from './module-show-modal';
 
@@ -137,14 +136,13 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
 
     setSlugStatus('checking');
     const excludeId = record?.id;
-    const tenant    = getTenantSlug();
 
     const timer = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ slug });
         if (excludeId) params.set('exclude_id', String(excludeId));
         const res = await apiGet<{ available: boolean }>(
-          `/v1/${tenant}/modules/check-slug?${params}`,
+          `/v1/modules/check-slug?${params}`,
         );
         setSlugStatus(res.available ? 'available' : 'unavailable');
       } catch {

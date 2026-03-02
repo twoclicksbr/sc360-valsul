@@ -101,10 +101,24 @@ class ModuleController extends Controller
             }
         }
 
-        // Filtro por owner_level (campo enum: master/platform/tenant)
-        if ($ownerLevel = $request->input('owner_level')) {
-            if (in_array('owner_level', $fillable, true)) {
-                $query->where('owner_level', $ownerLevel);
+        // Filtro por owner_level: aplica limite de access_level + filtro explícito opcional
+        if (in_array('owner_level', $fillable, true)) {
+            $accessLevel = config('app.access_level', 'tenant');
+            $allowedLevels = match ($accessLevel) {
+                'master'   => ['master', 'platform', 'tenant'],
+                'platform' => ['platform', 'tenant'],
+                default    => ['tenant'],
+            };
+
+            if ($ownerLevel = $request->input('owner_level')) {
+                // Filtro explícito: respeita a fronteira do access_level
+                if (in_array($ownerLevel, $allowedLevels, true)) {
+                    $query->where('owner_level', $ownerLevel);
+                } else {
+                    $query->whereRaw('1=0'); // nível não permitido → retorna vazio
+                }
+            } else {
+                $query->whereIn('owner_level', $allowedLevels);
             }
         }
 
