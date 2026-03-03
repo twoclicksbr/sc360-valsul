@@ -52,6 +52,8 @@ Para cada arquivo alterado, analise o diff real de cada um. Categorize:
 
 Agrupe por área: Backend, Frontend (layout, providers, pages, componentes, lib), Config.
 
+**Se não houver mudanças (working tree clean, nada staged, e nenhum commit novo desde o último sync do CLAUDE.md), avise "Nenhuma mudança para documentar." e pare aqui. Não prossiga para os Passos 4 e 5.**
+
 ## Passo 4 — Atualizar CLAUDE.md
 
 Leia o CLAUDE.md atual completo. Compare com as mudanças levantadas no Passo 3.

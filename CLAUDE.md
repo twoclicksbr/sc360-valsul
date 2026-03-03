@@ -21,7 +21,7 @@
 Slash commands implementados como arquivos em `.claude/commands/`. Invocar com `/nome-do-comando`.
 
 ### /docs
-Branch management + sincroniza CLAUDE.md + commit/push. Gerencia branches de feature (criar, trocar, combinar), analisa diffs detalhadamente, atualiza CLAUDE.md seção por seção, commita e faz push na branch de feature.
+Branch management + sincroniza CLAUDE.md + commit/push. Gerencia branches de feature (criar, trocar, combinar), analisa diffs detalhadamente, atualiza CLAUDE.md seção por seção, commita e faz push na branch de feature. Para automaticamente se não houver mudanças para documentar.
 Arquivo: `.claude/commands/docs.md`
 
 ### /merge
