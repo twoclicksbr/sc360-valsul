@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import * as LucideIcons from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Container } from '@/components/common/container';
 import { GenericGrid } from '@/components/generic-grid';
@@ -6,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ModuleModal, ModuleInlineCtx, type ModuleForEdit } from './module-modal';
 import { ModuleShowModal } from './module-show-modal';
+import { useModules } from '@/providers/modules-provider';
 
 export function ModulesPage() {
+  const { refreshModules } = useModules();
   const [selectedModule, setSelectedModule] = useState<ModuleForEdit | null>(null);
   const [gridKey, setGridKey] = useState(0);
   const [filterOwnerLevel, setFilterOwnerLevel] = useState('all');
@@ -110,30 +113,24 @@ export function ModulesPage() {
             label: 'Nome',
             sortable: true,
             // meta: { style: { width: '' } },
-            render: (value, record, openModal) => (
-              <button
-                className="text-left hover:underline cursor-pointer font-bold text-blue-600"
-                onClick={() => openModal('show', record)}
-              >
-                {String(value ?? '—')}
-              </button>
-            ),
+            render: (value, record, openModal) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const IconComponent = record.icon ? (LucideIcons as any)[record.icon] as React.ComponentType<{ className?: string }> : null;
+              return (
+                <button
+                  className="text-left hover:underline cursor-pointer font-bold text-blue-600 flex items-center gap-2"
+                  onClick={() => openModal('show', record)}
+                >
+                  {IconComponent && <IconComponent className="size-4 text-muted-foreground" />}
+                  {String(value ?? '—')}
+                </button>
+              );
+            },
           },
           {
             key: 'slug',
             label: 'Slug',
             sortable: true,
-            meta: { style: { width: '10%' } },
-            render: (value) => (
-              <Badge variant="info" appearance="light">
-                {String(value ?? '—')}
-              </Badge>
-            ),
-          },
-
-          {
-            key: 'order',
-            label: 'Ordem',
             meta: { style: { width: '10%' } },
             render: (value) => (
               <Badge variant="info" appearance="light">
@@ -183,6 +180,7 @@ export function ModulesPage() {
           'platform|module', 'platform|submodule', 'platform|pivot',
           'tenant|module', 'tenant|submodule', 'tenant|pivot',
         ]}
+        onReorder={refreshModules}
         renderSearchFilters={renderSearchFilters}
         onClearSearchFilters={handleClearSearchFilters}
         onSearch={handleSearch}

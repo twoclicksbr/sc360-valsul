@@ -1,25 +1,23 @@
-import { type CSSProperties, useEffect, useId, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  closestCenter,
   DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
+  closestCenter,
   type DragEndEvent,
-  type DragStartEvent,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import {
-  arrayMove,
   SortableContext,
-  useSortable,
   verticalListSortingStrategy,
+  arrayMove,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import {
+  useDndSensors,
+  dndAccessibility,
+  DndOverlayPortal,
+  SortableRowCtx,
+  useSortableRow,
+  DragHandle,
+} from '@/lib/dnd-config';
 import { GripVertical, Link2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -239,31 +237,24 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
 }
 
 // ---------------------------------------------------------------------------
-// SortableRow
+// FieldTableRow
 // ---------------------------------------------------------------------------
 
-interface SortableRowProps {
+interface FieldTableRowProps {
   field: FieldRow;
   isReadOnly: boolean;
   onChange: (id: number, key: keyof FieldRow, value: unknown) => void;
   onDelete: (id: number) => void;
 }
 
-function SortableRow({ field, isReadOnly, onChange, onDelete }: SortableRowProps) {
+function FieldTableRow({ field, isReadOnly, onChange, onDelete }: FieldTableRowProps) {
   const isCustom    = field.is_custom;
   const rowReadOnly = isReadOnly || !isCustom;
 
-  const { attributes, listeners, isDragging, setNodeRef, transform } = useSortable({
-    id: String(field.id),
-    disabled: rowReadOnly,
-  });
-
+  const { setNodeRef, transform, transition, attributes, listeners, isDragging } = useSortableRow(String(field.id));
   const [fkOpen, setFkOpen] = useState(false);
 
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    opacity: isDragging ? 0 : 1,
-  };
+  const style: CSSProperties = { transform, transition, opacity: isDragging ? 0.4 : 1 };
 
   const isBigint          = field.type === 'BIGINT';
   const lengthDisabled    = NO_LENGTH_TYPES.has(field.type) || rowReadOnly;
@@ -272,194 +263,167 @@ function SortableRow({ field, isReadOnly, onChange, onDelete }: SortableRowProps
   const hasFk             = field.fk_table !== '' || field.fk_column !== '' || field.fk_label !== '';
 
   return (
-    <tr
-      ref={setNodeRef}
-      style={style}
-      className={`border-b hover:bg-muted/20 group ${!isCustom ? 'bg-muted/50' : ''}`}
-    >
+    <SortableRowCtx.Provider value={{ attributes, listeners, isDragging }}>
+      <tr
+        ref={setNodeRef}
+        style={style}
+        className={`border-b hover:bg-muted/20 group ${!isCustom ? 'bg-muted/50' : ''}`}
+      >
 
-      {/* Drag handle */}
-      <td className="w-8 px-1.5">
-        {!rowReadOnly && (
-          <span
-            className="flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground opacity-40 group-hover:opacity-100 transition-opacity outline-none focus:outline-none"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="size-4" />
-          </span>
-        )}
-      </td>
+        {/* Drag handle */}
+        <td className="w-8 px-1.5">
+          <DragHandle disabled={rowReadOnly} />
+        </td>
 
-      {/* Nome */}
-      <td className="px-1.5 py-1.5">
-        <Input
-          value={field.name}
-          onChange={e => onChange(field.id, 'name', e.target.value)}
-          className="h-8 text-sm font-mono"
-          placeholder="field_name"
-          disabled={rowReadOnly}
-        />
-      </td>
-
-      {/* Tipo */}
-      <td className="px-1.5 py-1.5" style={{ minWidth: '130px' }}>
-        <Select
-          value={field.type}
-          onValueChange={v => {
-            const wasTextLength = TEXT_LENGTH_TYPES.has(field.type);
-            const isTextLength  = TEXT_LENGTH_TYPES.has(v);
-            const isNoLength    = NO_LENGTH_TYPES.has(v);
-            if (isNoLength || isTextLength || wasTextLength || v === 'BIGINT' || field.type === 'BIGINT') {
-              onChange(field.id, 'length', null);
-            }
-            onChange(field.id, 'type', v);
-          }}
-          disabled={rowReadOnly}
-        >
-          <SelectTrigger className="h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FIELD_TYPES.map(t => (
-              <SelectItem key={t} value={t} className="text-sm">{t}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </td>
-
-      {/* Tamanho / FK */}
-      <td className="px-1.5 py-1.5" style={{ width: '96px' }}>
-        {isBigint ? (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={`h-8 w-full text-xs gap-1 ${hasFk ? 'border-blue-400 text-blue-600 hover:text-blue-600' : ''}`}
-              onClick={() => setFkOpen(true)}
-              disabled={rowReadOnly}
-            >
-              <Link2 className="size-3" />
-              FK
-            </Button>
-            <FkModal
-              open={fkOpen}
-              fkTable={field.fk_table}
-              fkColumn={field.fk_column}
-              fkLabel={field.fk_label}
-              onConfirm={(table, column, label) => {
-                onChange(field.id, 'fk_table',  table);
-                onChange(field.id, 'fk_column', column);
-                onChange(field.id, 'fk_label',  label);
-                setFkOpen(false);
-              }}
-              onCancel={() => setFkOpen(false)}
-            />
-          </>
-        ) : (
+        {/* Nome */}
+        <td className="px-1.5 py-1.5">
           <Input
-            type={lengthIsText ? 'text' : 'number'}
-            value={field.length ?? ''}
-            onChange={e => onChange(field.id, 'length', e.target.value === '' ? null : (lengthIsText ? e.target.value : parseInt(e.target.value, 10)))}
-            className="h-8 text-sm"
-            placeholder={lengthPlaceholder}
-            disabled={lengthDisabled}
+            value={field.name}
+            onChange={e => onChange(field.id, 'name', e.target.value)}
+            className="h-8 text-sm font-mono"
+            placeholder="field_name"
+            disabled={rowReadOnly}
           />
-        )}
-      </td>
+        </td>
 
-      {/* Nulo */}
-      <td className="px-1.5 py-1.5 text-center">
-        <Checkbox
-          checked={field.nullable}
-          onCheckedChange={v => onChange(field.id, 'nullable', !!v)}
-          disabled={rowReadOnly}
-        />
-      </td>
-
-      {/* Obrigatório */}
-      <td className="px-1.5 py-1.5 text-center">
-        <Checkbox
-          checked={field.required}
-          onCheckedChange={v => onChange(field.id, 'required', !!v)}
-          disabled={rowReadOnly}
-        />
-      </td>
-
-      {/* Único */}
-      <td className="px-1.5 py-1.5 text-center">
-        <Checkbox
-          checked={field.unique}
-          onCheckedChange={v => onChange(field.id, 'unique', !!v)}
-          disabled={rowReadOnly}
-        />
-      </td>
-
-      {/* Índice */}
-      <td className="px-1.5 py-1.5 text-center">
-        <Checkbox
-          checked={field.index}
-          onCheckedChange={v => onChange(field.id, 'index', !!v)}
-          disabled={rowReadOnly}
-        />
-      </td>
-
-      {/* Default */}
-      <td className="px-1.5 py-1.5">
-        <Input
-          value={field.default ?? ''}
-          onChange={e => onChange(field.id, 'default', e.target.value)}
-          className="h-8 text-sm"
-          placeholder="—"
-          disabled={rowReadOnly}
-        />
-      </td>
-
-      {/* Ativo */}
-      <td className="px-1.5 py-1.5 text-center">
-        <Checkbox
-          checked={field.active}
-          onCheckedChange={v => onChange(field.id, 'active', !!v)}
-          disabled={rowReadOnly}
-        />
-      </td>
-
-      {/* Deletar */}
-      <td className="w-8 px-1.5 py-1.5 text-center">
-        {!isReadOnly && isCustom && (
-          <button
-            type="button"
-            className="text-destructive opacity-40 hover:opacity-100 transition-opacity"
-            onClick={() => onDelete(field.id)}
-            title="Remover campo"
+        {/* Tipo */}
+        <td className="px-1.5 py-1.5" style={{ minWidth: '130px' }}>
+          <Select
+            value={field.type}
+            onValueChange={v => {
+              const wasTextLength = TEXT_LENGTH_TYPES.has(field.type);
+              const isTextLength  = TEXT_LENGTH_TYPES.has(v);
+              const isNoLength    = NO_LENGTH_TYPES.has(v);
+              if (isNoLength || isTextLength || wasTextLength || v === 'BIGINT' || field.type === 'BIGINT') {
+                onChange(field.id, 'length', null);
+              }
+              onChange(field.id, 'type', v);
+            }}
+            disabled={rowReadOnly}
           >
-            <Trash2 className="size-4" />
-          </button>
-        )}
-      </td>
-    </tr>
-  );
-}
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FIELD_TYPES.map(t => (
+                <SelectItem key={t} value={t} className="text-sm">{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </td>
 
-// ---------------------------------------------------------------------------
-// OverlayRow — clone visual para o DragOverlay
-// ---------------------------------------------------------------------------
+        {/* Tamanho / FK */}
+        <td className="px-1.5 py-1.5" style={{ width: '96px' }}>
+          {isBigint ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={`h-8 w-full text-xs gap-1 ${hasFk ? 'border-blue-400 text-blue-600 hover:text-blue-600' : ''}`}
+                onClick={() => setFkOpen(true)}
+                disabled={rowReadOnly}
+              >
+                <Link2 className="size-3" />
+                FK
+              </Button>
+              <FkModal
+                open={fkOpen}
+                fkTable={field.fk_table}
+                fkColumn={field.fk_column}
+                fkLabel={field.fk_label}
+                onConfirm={(table, column, label) => {
+                  onChange(field.id, 'fk_table',  table);
+                  onChange(field.id, 'fk_column', column);
+                  onChange(field.id, 'fk_label',  label);
+                  setFkOpen(false);
+                }}
+                onCancel={() => setFkOpen(false)}
+              />
+            </>
+          ) : (
+            <Input
+              type={lengthIsText ? 'text' : 'number'}
+              value={field.length ?? ''}
+              onChange={e => onChange(field.id, 'length', e.target.value === '' ? null : (lengthIsText ? e.target.value : parseInt(e.target.value, 10)))}
+              className="h-8 text-sm"
+              placeholder={lengthPlaceholder}
+              disabled={lengthDisabled}
+            />
+          )}
+        </td>
 
-function OverlayRow({ field }: { field: FieldRow }) {
-  return (
-    <table className="w-full text-sm border border-border rounded-md shadow-lg bg-background">
-      <tbody>
-        <tr>
-          <td className="w-8 px-1.5 py-2">
-            <GripVertical className="size-4 text-muted-foreground" />
-          </td>
-          <td className="px-1.5 py-2 font-mono text-sm">{field.name}</td>
-          <td className="px-1.5 py-2 text-sm text-muted-foreground">{field.type}</td>
-          <td colSpan={8} />
-        </tr>
-      </tbody>
-    </table>
+        {/* Nulo */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.nullable}
+            onCheckedChange={v => onChange(field.id, 'nullable', !!v)}
+            disabled={rowReadOnly}
+          />
+        </td>
+
+        {/* Obrigatório */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.required}
+            onCheckedChange={v => onChange(field.id, 'required', !!v)}
+            disabled={rowReadOnly}
+          />
+        </td>
+
+        {/* Único */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.unique}
+            onCheckedChange={v => onChange(field.id, 'unique', !!v)}
+            disabled={rowReadOnly}
+          />
+        </td>
+
+        {/* Índice */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.index}
+            onCheckedChange={v => onChange(field.id, 'index', !!v)}
+            disabled={rowReadOnly}
+          />
+        </td>
+
+        {/* Default */}
+        <td className="px-1.5 py-1.5">
+          <Input
+            value={field.default ?? ''}
+            onChange={e => onChange(field.id, 'default', e.target.value)}
+            className="h-8 text-sm"
+            placeholder="—"
+            disabled={rowReadOnly}
+          />
+        </td>
+
+        {/* Ativo */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.active}
+            onCheckedChange={v => onChange(field.id, 'active', !!v)}
+            disabled={rowReadOnly}
+          />
+        </td>
+
+        {/* Deletar */}
+        <td className="w-8 px-1.5 py-1.5 text-center">
+          {!isReadOnly && isCustom && (
+            <button
+              type="button"
+              className="text-destructive opacity-40 hover:opacity-100 transition-opacity"
+              onClick={() => onDelete(field.id)}
+              title="Remover campo"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          )}
+        </td>
+      </tr>
+    </SortableRowCtx.Provider>
   );
 }
 
@@ -502,11 +466,12 @@ export interface ModuleFieldsTabProps {
 }
 
 export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
-  const dndId      = useId();
+  const tabDndId   = useId();
+  const sensors    = useDndSensors();
   const isReadOnly = mode === 'show';
 
-  const [fields,  setFields]  = useState<FieldRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fields,   setFields]   = useState<FieldRow[]>([]);
+  const [loading,  setLoading]  = useState(true);
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 
   // Ref para sempre ter o estado mais recente nos debounce timers
@@ -516,10 +481,10 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
   // Mantém o ref sincronizado com o state
   useEffect(() => { fieldsRef.current = fields; }, [fields]);
 
-  const sensors = useSensors(
-    useSensor(MouseSensor, {}),
-    useSensor(TouchSensor, {}),
-    useSensor(KeyboardSensor, {}),
+  const fieldIds    = useMemo(() => fields.map(f => String(f.id)), [fields]);
+  const activeField = useMemo(
+    () => activeId ? fields.find(f => String(f.id) === String(activeId)) ?? null : null,
+    [activeId, fields],
   );
 
   // ── Carregar campos da API ─────────────────────────────────────────────────
@@ -535,16 +500,11 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
       .finally(() => setLoading(false));
   }, [moduleId]);
 
-  const fieldIds    = fields.map(f => String(f.id));
-  const activeField = activeId ? fields.find(f => String(f.id) === String(activeId)) : null;
-
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   function handleChange(id: number, key: keyof FieldRow, value: unknown) {
-    // 1. Update local state imediato
     setFields(prev => prev.map(f => f.id === id ? { ...f, [key]: value } : f));
 
-    // 2. Debounce PUT 800ms — usa fieldsRef para pegar o estado mais recente
     const existing = debounceTimers.current.get(id);
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
@@ -592,10 +552,6 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
     }
   }
 
-  function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id);
-  }
-
   async function handleDragEnd(event: DragEndEvent) {
     setActiveId(null);
     (document.activeElement as HTMLElement)?.blur();
@@ -608,8 +564,7 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
 
     const reordered = arrayMove(fields, oldIndex, newIndex);
 
-    // Redistribui os valores de order existentes dos campos custom entre as novas posições.
-    // sortFields usa order ASC para campos custom: menor order = visualmente primeiro.
+    // Redistribui os valores de order existentes dos campos custom entre as novas posições
     const oldCustomOrders = fields
       .filter(f => f.is_custom)
       .sort((a, b) => a.order - b.order)
@@ -627,20 +582,14 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
 
     try {
       await Promise.all(
-        changed.map(f => apiPut(`/v1/module-fields/${f.id}`, { order: f.order })),
+        changed.map(f => apiPut(`/v1/module-fields/${f.id}`, toApiPayload(f))),
       );
     } catch (err) {
       console.error('[ModuleFieldsTab] Erro ao reordenar campos:', err);
-      // rollback: recarrega do banco
       apiGet<{ data: Record<string, unknown>[] }>(
         `/v1/module-fields?module_id=${moduleId}&per_page=200&sort=order&direction=asc`,
       ).then(res => setFields(sortFields(res.data.map(normalize)))).catch(() => {});
     }
-  }
-
-  function handleDragCancel() {
-    setActiveId(null);
-    (document.activeElement as HTMLElement)?.blur();
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -657,13 +606,13 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
     <div className={`flex flex-col gap-3 ${isReadOnly ? 'pointer-events-none opacity-60' : ''}`}>
 
       <DndContext
-        id={dndId}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis]}
+        id={tabDndId}
         sensors={sensors}
-        onDragStart={handleDragStart}
+        collisionDetection={closestCenter}
+        accessibility={dndAccessibility}
+        onDragStart={(e) => setActiveId(e.active.id)}
         onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
+        onDragCancel={() => setActiveId(null)}
       >
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full text-sm border-collapse">
@@ -685,7 +634,7 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
             <tbody>
               <SortableContext items={fieldIds} strategy={verticalListSortingStrategy}>
                 {fields.map(field => (
-                  <SortableRow
+                  <FieldTableRow
                     key={field.id}
                     field={field}
                     isReadOnly={isReadOnly}
@@ -706,9 +655,22 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
           </table>
         </div>
 
-        <DragOverlay dropAnimation={null}>
-          {activeField ? <OverlayRow field={activeField} /> : null}
-        </DragOverlay>
+        <DndOverlayPortal>
+          {activeField ? (
+            <table className="w-full text-sm border border-border rounded-md shadow-lg bg-background">
+              <tbody>
+                <tr>
+                  <td className="w-8 px-1.5 py-2">
+                    <GripVertical className="size-4 text-muted-foreground" />
+                  </td>
+                  <td className="px-1.5 py-2 font-mono text-sm">{activeField.name}</td>
+                  <td className="px-1.5 py-2 text-sm text-muted-foreground">{activeField.type}</td>
+                  <td colSpan={8} />
+                </tr>
+              </tbody>
+            </table>
+          ) : null}
+        </DndOverlayPortal>
       </DndContext>
 
       {/* Botão Adicionar Campo */}

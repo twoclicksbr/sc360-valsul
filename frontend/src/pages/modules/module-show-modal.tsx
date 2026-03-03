@@ -758,21 +758,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
               <ArrowLeft className="size-4" />
               Voltar
             </Button>
-            {parentModule && (() => {
-              const ParentIcon = parentModule.icon
-                ? ((LucideIcons as Record<string, unknown>)[parentModule.icon] as React.ComponentType<{ className?: string }> | undefined)
-                : undefined;
-              return (
-                <>
-                  <span className="flex items-center gap-1.5 text-muted-foreground shrink-0">
-                    {ParentIcon && <ParentIcon className="size-4" />}
-                    <span className="text-base">{parentModule.name}</span>
-                  </span>
-                  <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-                </>
-              );
-            })()}
-            <span className="text-muted-foreground font-normal text-base shrink-0">{formatId(record.id)}</span>
+<span className="text-muted-foreground font-normal text-base shrink-0">{formatId(record.id)}</span>
             <span className="text-xl font-bold leading-tight truncate">{record.name}</span>
             {record.active
               ? <Badge variant="success" appearance="light" className="shrink-0">Ativo</Badge>

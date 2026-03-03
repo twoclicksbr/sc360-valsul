@@ -21,9 +21,9 @@ class PlatformRequest extends FormRequest
 
         return [
             'name'            => ['required', 'string', 'max:255'],
-            'domain'          => ['required', 'string', 'max:255', 'unique:main.platforms,domain' . ($platformId ? ',' . $platformId : '')],
+            'domain'          => ['required', 'string', 'max:255', 'unique:tc_master.platforms,domain' . ($platformId ? ',' . $platformId : '')],
             'domain_local'    => ['nullable', 'string', 'max:255'],
-            'slug'            => ['required', 'string', 'max:255', 'unique:main.platforms,slug' . ($platformId ? ',' . $platformId : '')],
+            'slug'            => ['required', 'string', 'max:255', 'unique:tc_master.platforms,slug' . ($platformId ? ',' . $platformId : '')],
             'db_name'         => ['sometimes', 'required', 'string', 'max:255'],
             'sand_user'       => ['sometimes', 'nullable', 'string', 'max:255'],
             'sand_password'   => ['sometimes', 'nullable', 'string'],

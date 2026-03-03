@@ -1,6 +1,10 @@
 /* Tailwind Core */
 @import 'tailwindcss';
 
+:root {
+  --banner-height: 0px;
+}
+
 /* ReUI Configs */
 @import './config.reui.css';
 

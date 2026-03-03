@@ -1,5 +1,23 @@
-import React, { CSSProperties, Fragment, type ComponentType, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { Fragment, type ComponentType, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  type DragEndEvent,
+  type UniqueIdentifier,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import {
+  useDndSensors,
+  dndAccessibility,
+  DndOverlayPortal,
+  SortableRowCtx,
+  useSortableRow,
+  DragHandle,
+} from '@/lib/dnd-config';
 import {
   type Cell,
   type Column,
@@ -13,22 +31,6 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import {
-  closestCenter,
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  type DragEndEvent,
-  type UniqueIdentifier,
-  useDndContext,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown,
   ArrowUp,
@@ -69,9 +71,7 @@ import {
   DataGridTableHeadRowCell,
   DataGridTableRowSpacer,
 } from '@/components/ui/data-grid-table';
-import { DataGridTableDndRows, RowDndCtx } from '@/components/ui/data-grid-table-dnd-rows';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -153,6 +153,7 @@ export interface GenericGridProps {
   // Filtros específicos do módulo (segunda linha no modal de pesquisa)
   renderSearchFilters?: React.ReactNode;
   onDataLoad?: (data: Record<string, unknown>[]) => void;
+  onReorder?: () => void;
   onClearSearchFilters?: () => void;
   onSearch?: (baseFilters: Record<string, string>) => Record<string, string>;
   hasModuleFilters?: boolean;
@@ -202,34 +203,102 @@ function parseWidthPx(width?: string): number | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// DnD sub-components
 // ---------------------------------------------------------------------------
 
-
-function DragHandle({ rowId }: { rowId: string }) {
-  const ctx = useContext(RowDndCtx);
-  // Flat mode: ctx provided by DataGridTableDndRow (same useSortable id — no duplicate)
-  // Grouped mode: ctx is null, fall back to own useSortable call
-  const fallback = useSortable({ id: rowId, disabled: ctx !== null });
-  const { attributes, listeners, isDragging } = ctx ?? fallback;
-  const [tooltipOpen, setTooltipOpen] = useState(false);
+function DndSortableRow({ row }: { row: Row<AnyRecord> }) {
+  const { setNodeRef, transform, transition, attributes, listeners, isDragging } = useSortableRow(String(row.original.id));
   return (
-    <TooltipProvider>
-      <Tooltip open={isDragging ? false : tooltipOpen} onOpenChange={setTooltipOpen}>
-        <TooltipTrigger asChild>
-          <span
-            className="flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 active:outline-none active:ring-0"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="size-4" />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="right">Arrastar para reordenar</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <SortableRowCtx.Provider value={{ attributes, listeners, isDragging }}>
+      <DataGridTableBodyRow
+        row={row}
+        dndRef={setNodeRef}
+        dndStyle={{ transform, transition, opacity: isDragging ? 0.4 : 1 }}
+      >
+        {row.getVisibleCells().map((cell: Cell<AnyRecord, unknown>, colIndex) => (
+          <DataGridTableBodyRowCell cell={cell} key={colIndex}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </DataGridTableBodyRowCell>
+        ))}
+      </DataGridTableBodyRow>
+    </SortableRowCtx.Provider>
   );
 }
+
+function FlatDndTable({ dataIds }: { dataIds: UniqueIdentifier[] }) {
+  const { table, isLoading, props } = useDataGrid();
+  const pagination = table.getState().pagination;
+  const rows = table.getRowModel().rows as Row<AnyRecord>[];
+  return (
+    <SortableContext items={dataIds} strategy={verticalListSortingStrategy}>
+      <DataGridTableBase>
+        <DataGridTableHead>
+          {table.getHeaderGroups().map((headerGroup: HeaderGroup<AnyRecord>, index) => (
+            <DataGridTableHeadRow headerGroup={headerGroup} key={index}>
+              {headerGroup.headers.map((header, i) => (
+                <DataGridTableHeadRowCell header={header} key={i}>
+                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                </DataGridTableHeadRowCell>
+              ))}
+            </DataGridTableHeadRow>
+          ))}
+        </DataGridTableHead>
+        {(props.tableLayout?.stripped || !props.tableLayout?.rowBorder) && <DataGridTableRowSpacer />}
+        <DataGridTableBody>
+          {props.loadingMode === 'skeleton' && isLoading && pagination?.pageSize ? (
+            Array.from({ length: pagination.pageSize }).map((_, rowIndex) => (
+              <DataGridTableBodyRowSkeleton key={rowIndex}>
+                {table.getVisibleFlatColumns().map((column, colIndex) => (
+                  <DataGridTableBodyRowSkeletonCell column={column} key={colIndex}>
+                    {column.columnDef.meta?.skeleton}
+                  </DataGridTableBodyRowSkeletonCell>
+                ))}
+              </DataGridTableBodyRowSkeleton>
+            ))
+          ) : rows.length ? (
+            rows.map((row) => <DndSortableRow row={row} key={row.id} />)
+          ) : (
+            <DataGridTableEmpty />
+          )}
+        </DataGridTableBody>
+      </DataGridTableBase>
+    </SortableContext>
+  );
+}
+
+interface GroupedDndSectionProps {
+  groupKey: string;
+  rows: Row<AnyRecord>[];
+  onDragEnd: (event: DragEndEvent, groupKey: string, rows: Row<AnyRecord>[]) => void;
+  buildOverlay: (activeId: UniqueIdentifier | null) => React.ReactNode;
+}
+
+function GroupedDndSection({ groupKey, rows, onDragEnd, buildOverlay }: GroupedDndSectionProps) {
+  const sensors = useDndSensors();
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  const items = useMemo(() => rows.map((r) => String(r.original.id)), [rows]);
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      accessibility={dndAccessibility}
+      onDragStart={(e) => setActiveId(e.active.id)}
+      onDragEnd={(e) => { setActiveId(null); onDragEnd(e, groupKey, rows); }}
+      onDragCancel={() => setActiveId(null)}
+    >
+      <SortableContext items={items} strategy={verticalListSortingStrategy}>
+        {rows.map((row) => <DndSortableRow row={row} key={row.id} />)}
+      </SortableContext>
+      <DndOverlayPortal>
+        {activeId ? buildOverlay(activeId) : null}
+      </DndOverlayPortal>
+    </DndContext>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 function SortableColumnHeader({ column, label, headFlex, onResetSorting }: {
   column: Column<AnyRecord>;
@@ -325,86 +394,6 @@ function renderCellByType(value: unknown, col: ColumnConfig, record: AnyRecord, 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Grouped table DnD helpers
-// ---------------------------------------------------------------------------
-
-function GroupedDndRow({ row }: { row: Row<AnyRecord> }) {
-  const recordId = String(row.original.id);
-  const { transform, setNodeRef, isDragging } = useSortable({ id: recordId });
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    opacity: isDragging ? 0 : 1,
-    position: 'relative',
-  };
-  return (
-    <DataGridTableBodyRow row={row} dndRef={setNodeRef} dndStyle={style}>
-      {row.getVisibleCells().map((cell: Cell<AnyRecord, unknown>, colIndex) => (
-        <DataGridTableBodyRowCell cell={cell} key={colIndex}>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </DataGridTableBodyRowCell>
-      ))}
-    </DataGridTableBodyRow>
-  );
-}
-
-function GroupedDndOverlay({
-  renderDragOverlay,
-}: {
-  renderDragOverlay?: (activeId: UniqueIdentifier | null) => React.ReactNode;
-}) {
-  const { active } = useDndContext();
-  return createPortal(
-    <DragOverlay dropAnimation={null}>
-      {active && renderDragOverlay ? renderDragOverlay(active.id) : null}
-    </DragOverlay>,
-    document.body,
-  );
-}
-
-function GroupedDndSection({
-  rows,
-  onDragEnd,
-  renderDragOverlay,
-}: {
-  rows: Row<AnyRecord>[];
-  onDragEnd: (activeId: string, overId: string) => void;
-  renderDragOverlay?: (activeId: UniqueIdentifier | null) => React.ReactNode;
-}) {
-  const id = useId();
-  const items = useMemo(
-    () => rows.map((r) => String(r.original.id)),
-    [rows],
-  );
-  const sensors = useSensors(
-    useSensor(MouseSensor),
-    useSensor(TouchSensor),
-    useSensor(KeyboardSensor),
-  );
-  return (
-    <DndContext
-      id={id}
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      sensors={sensors}
-      onDragEnd={(event) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) return;
-        // Fire-and-forget — não usar await aqui
-        onDragEnd(String(active.id), String(over.id));
-      }}
-      onDragCancel={() => (document.activeElement as HTMLElement)?.blur()}
-      accessibility={{ container: document.body }}
-    >
-      <SortableContext items={items} strategy={verticalListSortingStrategy}>
-        {rows.map((row) => (
-          <GroupedDndRow row={row} key={String(row.original.id)} />
-        ))}
-      </SortableContext>
-      <GroupedDndOverlay renderDragOverlay={renderDragOverlay} />
-    </DndContext>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Grouped table (static, sem DnD) — renderizado quando groupBy está definido
@@ -418,7 +407,7 @@ function GroupedTable({
   groupByLevel1Labels,
   showDrag,
   onGroupedDragEnd,
-  renderDragOverlay,
+  buildOverlay,
 }: {
   groupBy: string;
   groupByLabels: Record<string, string>;
@@ -426,8 +415,8 @@ function GroupedTable({
   groupByCompute?: (record: Record<string, unknown>) => string;
   groupByLevel1Labels?: Record<string, string>;
   showDrag?: boolean;
-  onGroupedDragEnd?: (activeId: string, overId: string) => void;
-  renderDragOverlay?: (activeId: UniqueIdentifier | null) => React.ReactNode;
+  onGroupedDragEnd?: (event: DragEndEvent, groupKey: string, rows: Row<AnyRecord>[]) => void;
+  buildOverlay?: (activeId: UniqueIdentifier | null) => React.ReactNode;
 }) {
   const { table, isLoading, props } = useDataGrid();
   const pagination = table.getState().pagination;
@@ -506,8 +495,13 @@ function GroupedTable({
                     {groupByLevel1Labels ? (groupByLabels[lvl2] ?? lvl2) : (groupByLabels[key] ?? key)}
                   </td>
                 </tr>
-                {showDrag && onGroupedDragEnd ? (
-                  <GroupedDndSection key={key} rows={groupRows} onDragEnd={onGroupedDragEnd} renderDragOverlay={renderDragOverlay} />
+                {showDrag && onGroupedDragEnd && buildOverlay ? (
+                  <GroupedDndSection
+                    groupKey={key}
+                    rows={groupRows}
+                    onDragEnd={onGroupedDragEnd}
+                    buildOverlay={buildOverlay}
+                  />
                 ) : (
                   groupRows.map((row) => (
                     <DataGridTableBodyRow row={row} key={row.id}>
@@ -557,6 +551,7 @@ export function GenericGrid({
   showPagination  = true,
   renderSearchFilters,
   onDataLoad,
+  onReorder,
   onClearSearchFilters,
   onSearch,
   hasModuleFilters = false,
@@ -567,9 +562,10 @@ export function GenericGrid({
   groupByCompute,
   groupByLevel1Labels,
 }: GenericGridProps) {
-  const effectiveShowDrag = showDrag;
   const onDataLoadRef = useRef(onDataLoad);
   onDataLoadRef.current = onDataLoad;
+  const onReorderRef = useRef(onReorder);
+  onReorderRef.current = onReorder;
   const onSearchRef = useRef(onSearch);
   onSearchRef.current = onSearch;
   const onClearSearchFiltersRef = useRef(onClearSearchFilters);
@@ -688,74 +684,6 @@ export function GenericGrid({
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Drag & Drop
-  // ---------------------------------------------------------------------------
-
-  const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id || !resolvedSlug) return;
-
-      const oldIndex = data.findIndex((d) => String(d.id) === String(active.id));
-      const newIndex = data.findIndex((d) => String(d.id) === String(over.id));
-      if (oldIndex === -1 || newIndex === -1) return;
-      const newData = arrayMove(data, oldIndex, newIndex);
-
-      const baseOrder = total - pagination.pageIndex * pagination.pageSize;
-      const newDataWithOrders = newData.map((item, i) => ({ ...item, order: baseOrder - i } as AnyRecord));
-
-      const orderMap = new Map(data.map((item) => [item.id as number, (item.order as number) ?? 0]));
-      const changedItems = newDataWithOrders.filter(
-        (item) => (item.order as number) !== orderMap.get(item.id as number),
-      );
-
-      try {
-        await Promise.all(
-          changedItems.map((item) =>
-            apiPut<unknown>(`/v1/${resolvedSlug}/${item.id as number}`, item),
-          ),
-        );
-      } catch (err) {
-        console.error('[GenericGrid] Erro ao reordenar:', err);
-      } finally {
-        fetchData();
-      }
-    },
-    [data, total, pagination, fetchData, resolvedSlug],
-  );
-
-  const handleGroupedDragEnd = useCallback(
-    async (activeId: string, overId: string) => {
-      if (!resolvedSlug) return;
-      const oldIndex = data.findIndex((d) => String(d.id) === activeId);
-      const newIndex = data.findIndex((d) => String(d.id) === overId);
-      if (oldIndex === -1 || newIndex === -1) return;
-
-      const newData = arrayMove(data, oldIndex, newIndex);
-      const baseOrder = total - pagination.pageIndex * pagination.pageSize;
-      const newDataWithOrders = newData.map((item, i) => ({ ...item, order: baseOrder - i } as AnyRecord));
-
-      const orderMap = new Map(data.map((item) => [item.id as number, (item.order as number) ?? 0]));
-      const changedItems = newDataWithOrders.filter(
-        (item) => (item.order as number) !== orderMap.get(item.id as number),
-      );
-
-      try {
-        await Promise.all(
-          changedItems.map((item) =>
-            apiPut<unknown>(`/v1/${resolvedSlug}/${item.id as number}`, item),
-          ),
-        );
-      } catch (err) {
-        console.error('[GenericGrid] Erro ao reordenar em grupo:', err);
-      } finally {
-        fetchData();
-      }
-    },
-    [data, total, pagination, fetchData, resolvedSlug],
-  );
-
-  // ---------------------------------------------------------------------------
   // Bulk actions
   // ---------------------------------------------------------------------------
 
@@ -826,6 +754,101 @@ export function GenericGrid({
   }, [searchId, searchContentText, searchContentMode, searchDateRange, searchDateType, searchActive, searchDeleted, searchPerPage]);
 
   // ---------------------------------------------------------------------------
+  // DnD — state + sensors + handlers
+  // ---------------------------------------------------------------------------
+
+  const flatDndId  = useId();
+  const sensors    = useDndSensors();
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+
+  const dataIds = useMemo<UniqueIdentifier[]>(
+    () => data.map((d) => String(d.id)),
+    [data],
+  );
+
+  const buildDragOverlayContent = useCallback(
+    (overlayId: UniqueIdentifier | null): React.ReactNode => {
+      if (!overlayId) return null;
+      const item = data.find((d) => String(d.id) === String(overlayId));
+      if (!item) return null;
+      const col0 = columnConfigs[0];
+      const col1 = columnConfigs[1];
+      return (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'grabbing', minWidth: '200px', color: '#0f172a' }}>
+          <GripVertical style={{ width: '16px', height: '16px', color: '#94a3b8', flexShrink: 0 }} />
+          {col0 && <span style={{ fontWeight: 500 }}>{String(item[col0.key] ?? '')}</span>}
+          {col1 && <span style={{ color: '#64748b', fontSize: '0.75rem', marginLeft: '4px' }}>{String(item[col1.key] ?? '')}</span>}
+        </div>
+      );
+    },
+    [data, columnConfigs],
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = data.findIndex((d) => String(d.id) === String(active.id));
+    const newIndex = data.findIndex((d) => String(d.id) === String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const { pageIndex, pageSize } = pagination;
+    const baseOrder  = total - pageIndex * pageSize;
+    const reordered  = arrayMove(data, oldIndex, newIndex);
+    const newData    = reordered.map((item, i) => ({ ...item, order: baseOrder - i } as AnyRecord));
+
+    const orderMap = new Map(data.map((d) => [d.id as number, d.order as number]));
+    const changed  = newData.filter((d) => (d.order as number) !== orderMap.get(d.id as number));
+    if (!changed.length) return;
+
+    // Optimistic update — atualiza UI imediatamente, sem esperar o backend
+    setData(newData);
+
+    // PUTs em background — onReorder após confirmação, rollback se falhar
+    Promise.all(changed.map((d) => apiPut(`/v1/${resolvedSlug}/${d.id as number}`, { ...d, order: d.order })))
+      .then(() => { onReorderRef.current?.(); })
+      .catch((err) => {
+        console.error('[GenericGrid] Erro ao reordenar:', err);
+        fetchData();
+      });
+  }, [data, pagination, total, resolvedSlug, fetchData]);
+
+  const handleGroupedDragEnd = useCallback((event: DragEndEvent, _groupKey: string, groupRows: Row<AnyRecord>[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const groupData = groupRows.map((r) => r.original as AnyRecord);
+    const oldIndex  = groupData.findIndex((d) => String(d.id) === String(active.id));
+    const newIndex  = groupData.findIndex((d) => String(d.id) === String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Usa os valores de order na ordem visual atual (respeita ASC e DESC)
+    const sortedOrders = groupData.map((d) => d.order as number);
+    const reordered    = arrayMove(groupData, oldIndex, newIndex);
+    const newGroupData = reordered.map((d, i) => ({ ...d, order: sortedOrders[i] } as AnyRecord));
+
+    const orderMap = new Map(groupData.map((d) => [d.id as number, d.order as number]));
+    const changed  = newGroupData.filter((d) => (d.order as number) !== orderMap.get(d.id as number));
+    if (!changed.length) return;
+
+    // Optimistic update — reposiciona fisicamente os itens do grupo no array principal
+    // (só atualizar order não basta — TanStack Table renderiza na ordem do array)
+    const groupPositions = groupData.map((gd) => data.findIndex((d) => String(d.id) === String(gd.id)));
+    const newData = [...data];
+    newGroupData.forEach((item, i) => { newData[groupPositions[i]] = item; });
+    setData(newData);
+
+    // PUTs em background — onReorder após confirmação, rollback se falhar
+    Promise.all(changed.map((d) => apiPut(`/v1/${resolvedSlug}/${d.id as number}`, { ...d, order: d.order })))
+      .then(() => { onReorderRef.current?.(); })
+      .catch((err) => {
+        console.error('[GenericGrid] Erro ao reordenar grupo:', err);
+        fetchData();
+      });
+  }, [data, resolvedSlug, fetchData]);
+
+  // ---------------------------------------------------------------------------
   // Columns
   // ---------------------------------------------------------------------------
 
@@ -833,11 +856,11 @@ export function GenericGrid({
     const cols: ColumnDef<AnyRecord>[] = [];
 
     // — drag handle
-    if (effectiveShowDrag) {
+    if (showDrag) {
       cols.push({
         id: 'drag',
         header: () => null,
-        cell: ({ row }) => <DragHandle rowId={String(row.original.id)} />,
+        cell: () => <DragHandle />,
         meta: { style: { width: '5%' }, skeleton: <span className="block w-4 h-4" /> },
       });
     }
@@ -949,7 +972,7 @@ export function GenericGrid({
 
     return cols;
   }, [
-    effectiveShowDrag, showCheckbox, showId, showActive, showActions,
+    showDrag, showCheckbox, showId, showActive, showActions,
     showActionShow, showActionEdit, showActionDelete, showActionRestore,
     columnConfigs, openModal, resetSorting,
   ]);
@@ -978,46 +1001,6 @@ export function GenericGrid({
     manualPagination: true,
     manualSorting: true,
   });
-
-  // ---------------------------------------------------------------------------
-  // DnD data IDs + overlay
-  // ---------------------------------------------------------------------------
-
-  const dataIds = useMemo<UniqueIdentifier[]>(
-    () => table.getRowModel().rows.map((row) => String(row.original.id)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data],
-  );
-
-  const buildDragOverlayContent = useCallback(
-    (activeId: UniqueIdentifier | null) => {
-      if (activeId === null) return null;
-      const item = data.find((d) => String(d.id) === String(activeId));
-      if (!item) return null;
-      const col0 = columnConfigs[0];
-      const col1 = columnConfigs[1];
-      return (
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'grabbing', minWidth: '200px', color: '#0f172a' }}>
-          <GripVertical style={{ width: '16px', height: '16px', color: '#94a3b8', flexShrink: 0 }} />
-          {col0 && <span style={{ fontWeight: 500 }}>{String(item[col0.key] ?? '')}</span>}
-          {col1 && <span style={{ color: '#64748b', fontSize: '0.75rem', marginLeft: '4px' }}>{String(item[col1.key] ?? '')}</span>}
-        </div>
-      );
-    },
-    [data, columnConfigs],
-  );
-
-  // Overlay para modo não-agrupado: activeId = database record id
-  const renderDragOverlay = useCallback(
-    (activeId: UniqueIdentifier | null) => buildDragOverlayContent(activeId),
-    [buildDragOverlayContent],
-  );
-
-  // Overlay para modo agrupado: activeId = database record id
-  const renderGroupedDragOverlay = useCallback(
-    (activeId: UniqueIdentifier | null) => buildDragOverlayContent(activeId),
-    [buildDragOverlayContent],
-  );
 
   // ---------------------------------------------------------------------------
   // Modal component
@@ -1081,23 +1064,32 @@ export function GenericGrid({
             )}
 
             {/* Tabela */}
-            {!groupBy && effectiveShowDrag ? (
-              <DataGridTableDndRows
-                handleDragEnd={handleDragEnd}
-                dataIds={dataIds}
-                renderDragOverlay={renderDragOverlay}
-              />
-            ) : groupBy ? (
+            {groupBy ? (
               <GroupedTable
                 groupBy={groupBy}
                 groupByLabels={groupByLabels ?? {}}
                 groupByOrder={groupByOrder}
                 groupByCompute={groupByCompute}
                 groupByLevel1Labels={groupByLevel1Labels}
-                showDrag={effectiveShowDrag}
+                showDrag={showDrag}
                 onGroupedDragEnd={handleGroupedDragEnd}
-                renderDragOverlay={renderGroupedDragOverlay}
+                buildOverlay={buildDragOverlayContent}
               />
+            ) : showDrag ? (
+              <DndContext
+                id={flatDndId}
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                accessibility={dndAccessibility}
+                onDragStart={(e) => setActiveId(e.active.id)}
+                onDragEnd={handleDragEnd}
+                onDragCancel={() => setActiveId(null)}
+              >
+                <FlatDndTable dataIds={dataIds} />
+                <DndOverlayPortal>
+                  {activeId ? buildDragOverlayContent(activeId) : null}
+                </DndOverlayPortal>
+              </DndContext>
             ) : (
               <DataGridTable />
             )}

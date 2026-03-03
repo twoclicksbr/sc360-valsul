@@ -6,6 +6,8 @@ import { useBodyClass } from '@/hooks/use-body-class';
 import { useMenu } from '@/hooks/use-menu';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSettings } from '@/providers/settings-provider';
+import { SandboxBanner } from '@/components/sandbox-banner';
+import { isSandbox } from '@/lib/tenant';
 import { Footer } from './components/footer';
 import { Header } from './components/header';
 import { Navbar } from './components/navbar';
@@ -19,10 +21,10 @@ export function Demo3Layout() {
   const isMobileMode = useIsMobile();
 
   useBodyClass(`
-    [--header-height:58px] 
-    [--sidebar-width:58px] 
-    [--navbar-height:56px] 
-    lg:overflow-hidden 
+    [--header-height:58px]
+    [--sidebar-width:58px]
+    [--navbar-height:56px]
+    lg:overflow-hidden
     bg-muted!
   `);
 
@@ -31,15 +33,23 @@ export function Demo3Layout() {
     setOption('container', 'fluid');
   }, [setOption]);
 
+  const sandbox = isSandbox();
+
+  useEffect(() => {
+    const bannerHeight = sandbox ? '36px' : '0px';
+    document.documentElement.style.setProperty('--banner-height', bannerHeight);
+  }, [sandbox]);
+
   return (
     <>
       <Helmet>
         <title>{item?.title}</title>
       </Helmet>
+      {sandbox && <SandboxBanner />}
       <div className="flex grow">
         <Header />
 
-        <div className="flex flex-col lg:flex-row grow pt-(--header-height)">
+        <div className="flex flex-col lg:flex-row grow pt-[calc(var(--header-height)+var(--banner-height))]">
           {!isMobileMode && <Sidebar />}
 
           <Navbar />

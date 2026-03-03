@@ -1,10 +1,15 @@
 import { Link, Outlet } from 'react-router-dom';
 import { toAbsoluteUrl } from '@/lib/helpers';
 import { Card, CardContent } from '@/components/ui/card';
+import { SandboxBanner } from '@/components/sandbox-banner';
+import { isSandbox } from '@/lib/tenant';
 
 export function BrandedLayout() {
+  const sandbox = isSandbox();
+
   return (
     <>
+      {sandbox && <SandboxBanner />}
       <style>
         {`
           .branded-bg {

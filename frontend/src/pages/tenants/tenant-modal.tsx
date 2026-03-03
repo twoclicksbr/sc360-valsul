@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { Input, InputAddon, InputGroup } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GenericModal } from '@/components/generic-modal';
@@ -25,6 +25,7 @@ export interface TenantForEdit {
 interface Platform {
   id: number;
   name: string;
+  slug: string;
 }
 
 interface TenantModalProps {
@@ -33,7 +34,8 @@ interface TenantModalProps {
   mode: 'create' | 'edit' | 'delete' | 'show' | 'restore';
   record: TenantForEdit | null;
   onSuccess: () => void;
-  moduleId: number;
+  moduleId?: number;
+  slug?: string;
   size?: 'p' | 'm' | 'g';
 }
 
@@ -62,14 +64,14 @@ function toRenderMode(mode: TenantModalProps['mode']): RenderMode {
   return mode === 'edit' || mode === 'show' ? 'show-crm' : (mode as RenderMode);
 }
 
-export function TenantModal({ open, onOpenChange, mode, record, onSuccess, moduleId, size }: TenantModalProps) {
+export function TenantModal({ open, onOpenChange, mode, record, onSuccess, moduleId, slug, size }: TenantModalProps) {
   // Dispatcher: 'edit' e 'show' abrem o modal CRM; os demais vão direto para GenericModal
   const [renderMode, setRenderMode] = useState<RenderMode>(toRenderMode(mode));
 
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [platformId, setPlatformId] = useState<number | null>(null);
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
+  const [tenantSlug, setTenantSlug] = useState('');
   const [slugManual, setSlugManual] = useState(false);
   const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
   const [expirationDate, setExpirationDate] = useState(defaultExpiration);
@@ -90,13 +92,13 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
       if (record) {
         setPlatformId(record.platform_id ?? null);
         setName(record.name);
-        setSlug(record.slug);
+        setTenantSlug(record.slug);
         setSlugManual(true);
         setExpirationDate(record.expiration_date?.split('T')[0] ?? defaultExpiration());
       } else {
         setPlatformId(null);
         setName('');
-        setSlug('');
+        setTenantSlug('');
         setSlugManual(false);
         setExpirationDate(defaultExpiration());
       }
@@ -108,7 +110,7 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
   // Verificação de disponibilidade do slug com debounce de 500ms
   useEffect(() => {
     if (renderMode !== 'create' && renderMode !== 'edit' && renderMode !== 'restore') return;
-    if (!slug) {
+    if (!tenantSlug) {
       setSlugStatus('idle');
       return;
     }
@@ -118,7 +120,7 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
 
     const timer = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ slug });
+        const params = new URLSearchParams({ slug: tenantSlug });
         if (excludeId) params.set('exclude_id', String(excludeId));
         const res = await apiGet<{ available: boolean }>(
           `/v1/tenants/check-slug?${params}`,
@@ -130,29 +132,33 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [slug, record?.id, renderMode]);
+  }, [tenantSlug, record?.id, renderMode]);
 
   function handleNameChange(value: string) {
     setName(value);
     if (!slugManual) {
-      setSlug(slugify(value));
+      setTenantSlug(slugify(value));
     }
   }
 
   function handleSlugChange(value: string) {
     setSlugManual(true);
-    setSlug(value);
+    setTenantSlug(value);
     setErrors((prev) => { const e = { ...prev }; delete e.slug; return e; });
   }
 
   function handleGetData(): Record<string, unknown> | null {
     if (slugStatus === 'checking' || slugStatus === 'unavailable') return null;
-    return { platform_id: platformId, name, slug, expiration_date: expirationDate };
+    return { platform_id: platformId, name, slug: tenantSlug, expiration_date: expirationDate };
   }
 
   function handleErrors(errs: Record<string, string[]>) {
     setErrors(errs);
   }
+
+  const addonText = platforms.find(p => p.id === platformId)?.slug
+    ? `${platforms.find(p => p.id === platformId)!.slug}_`
+    : '';
 
   return (
     <>
@@ -173,6 +179,7 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
           mode={renderMode}
           size={size}
           moduleId={moduleId}
+          slug={slug}
           record={record}
           onSuccess={onSuccess}
           onGetData={handleGetData}
@@ -180,7 +187,7 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
           saveDisabled={
             slugStatus === 'checking' ||
             slugStatus === 'unavailable' ||
-            (renderMode === 'create' && (!platformId || !name.trim() || !slug.trim() || !expirationDate))
+            (renderMode === 'create' && (!platformId || !name.trim() || !tenantSlug.trim() || !expirationDate))
           }
         >
           <div className="flex flex-col gap-1.5">
@@ -224,12 +231,15 @@ export function TenantModal({ open, onOpenChange, mode, record, onSuccess, modul
             <Label htmlFor="tenant-slug">
               Slug <span className="text-destructive">*</span>
             </Label>
-            <Input
-              id="tenant-slug"
-              value={slug}
-              onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="slug-do-tenant"
-            />
+            <InputGroup>
+              {addonText && <InputAddon>{addonText}</InputAddon>}
+              <Input
+                id="tenant-slug"
+                value={tenantSlug}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                placeholder="slug-do-tenant"
+              />
+            </InputGroup>
             {errors.slug && (
               <p className="text-sm text-destructive">{errors.slug[0]}</p>
             )}

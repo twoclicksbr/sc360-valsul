@@ -35,6 +35,7 @@ class Platform extends Model
         'prod_password'   => 'encrypted',
         'log_password'    => 'encrypted',
         'expiration_date' => 'date:Y-m-d',
+        'order'           => 'integer',
         'active'          => 'boolean',
     ];
 

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Input, InputAddon, InputGroup } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -23,6 +23,7 @@ import { type TenantForEdit } from './tenant-modal';
 interface Platform {
   id: number;
   name: string;
+  slug: string;
 }
 
 interface TenantShowModalProps {
@@ -217,6 +218,9 @@ export function TenantShowModal({ open, onOpenChange, record, platforms, onSucce
   if (!record) return null;
 
   const dbLabel = `tc_${record.db_name}`;
+  const addonText = platforms.find(p => p.id === platformId)?.slug
+    ? `${platforms.find(p => p.id === platformId)!.slug}_`
+    : '';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -317,11 +321,14 @@ export function TenantShowModal({ open, onOpenChange, record, platforms, onSucce
                         <Label htmlFor="show-slug">
                           Slug <span className="text-destructive">*</span>
                         </Label>
-                        <Input
-                          id="show-slug"
-                          value={slug}
-                          onChange={(e) => handleSlugChange(e.target.value)}
-                        />
+                        <InputGroup>
+                          {addonText && <InputAddon>{addonText}</InputAddon>}
+                          <Input
+                            id="show-slug"
+                            value={slug}
+                            onChange={(e) => handleSlugChange(e.target.value)}
+                          />
+                        </InputGroup>
                         {errors.slug && (
                           <p className="text-sm text-destructive">{errors.slug[0]}</p>
                         )}

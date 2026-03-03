@@ -29,7 +29,7 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
 
   const fetchPlatforms = useCallback(() => {
     if (getUrlTenantSlug() !== 'master') return;
-    apiGet<{ data: Platform[] }>('/v1/platforms?per_page=100&sort=order&direction=asc')
+    apiGet<{ data: Platform[] }>('/v1/platforms?per_page=100&sort=order&direction=desc')
       .then((res) => setPlatforms(res.data))
       .catch(() => setPlatforms([]));
   }, []);

@@ -361,8 +361,8 @@ Resolve a conexão do banco com base no hostname ou headers.
 
 | Model | Conexão | Observação |
 |-------|---------|-----------|
-| `Tenant` | `tc_master` (explícita) | hidden passwords; casts encrypted; `platform()` belongsTo |
-| `Platform` | `tc_master` (explícita) | hidden passwords; casts encrypted; campos `domain`, `domain_local`; `tenants()` hasMany |
+| `Tenant` | `tc_master` (explícita) | hidden passwords; casts encrypted + `'order' => 'integer'`; `platform()` belongsTo |
+| `Platform` | `tc_master` (explícita) | hidden passwords; casts encrypted + `'order' => 'integer'`; campos `domain`, `domain_local`; `tenants()` hasMany |
 | `User` | default (dinâmica) | Sanctum HasApiTokens |
 | `Person` | default (dinâmica) | cast `birth_date` como `'date:Y-m-d'` |
 | `Module` | default (dinâmica) | — |
@@ -436,8 +436,8 @@ Resolve a conexão do banco com base no hostname ou headers.
 
 | Request | Validação |
 |---------|-----------|
-| `PlatformRequest` | name, domain, domain_local (nullable), slug, db_name, sand/prod/log user+password, expiration_date, order, active |
-| `TenantRequest` | platform_id (required), demais credenciais pelo Observer |
+| `PlatformRequest` | name, domain (unique:tc_master.platforms), domain_local (nullable), slug (unique:tc_master.platforms), db_name, sand/prod/log user+password, expiration_date, order, active |
+| `TenantRequest` | platform_id (required, exists:tc_master.platforms), slug (unique:tc_master.tenants), demais credenciais pelo Observer |
 | `PersonRequest` | name (required), birth_date (nullable) |
 | `UserRequest` | person_id (required, FK), email (unique), password (required no create, nullable no update) |
 | `ModuleRequest` | owner_level, owner_id, slug, url_prefix, name, icon, type, model, request, controller, size_modal, descriptions, after_* |
@@ -520,10 +520,45 @@ Dentro de `<RequireAuth>` + `<Demo3Layout>`:
 - Colunas configuráveis: `key`, `label`, `sortable`, `type` (text/date/datetime/boolean/badge/currency), `render` (customizado)
 - Colunas padrão: drag handle, checkbox, id, active — toggle via props
 - Ações por linha via `GridActions`: show, edit, delete, restore
-- Drag & drop com `@dnd-kit` — reordenação com PUT apenas dos itens alterados
 - Agrupamento simples e duplo (`groupByCompute` para dois níveis)
 - Modal de pesquisa com filtros padrão + filtros específicos do módulo
 - Paginação, export (PDF/Excel), ações em massa, empty state
+
+**Drag & Drop (reordenação):**
+- Botão "Reordenar" — toggle ao lado de Pesquisar (visível quando `showDrag=true`). ON: sort muda para `order desc`, drag habilita, botão vira "Reordenando" (variant primary). OFF: restaura sort anterior, drag desabilita. Colunas ficam sem sort clicável durante reorderMode.
+- Modo flat (`!groupBy && showDrag && reorderMode`): `DndContext` + `FlatDndTable` — uma zona por página
+- Modo agrupado (`groupBy && showDrag && reorderMode`): `GroupedDndSection` por grupo — cada grupo é uma zona independente
+- `!reorderMode`: tabela simples sem DnD (flat ou agrupada)
+- Update otimístico: `setData` local imediato → PUTs em background apenas dos itens que mudaram de order → `fetchData` só no erro (rollback)
+- **Prop `onReorder?: () => void`**: callback chamado após os PUTs completarem com sucesso no backend. Usado por `PlatformsPage` (`refreshPlatforms`) e `ModulesPage` (`refreshModules`) para sincronizar providers.
+- DragHandle, sensores e overlay importados de `lib/dnd-config.tsx` (não definidos localmente)
+
+#### DnD centralizado (`lib/dnd-config.tsx`)
+
+Arquivo único para toda lógica de drag & drop. Consumido por `generic-grid.tsx` e `module-fields-tab.tsx`.
+
+| Export | Descrição |
+|--------|-----------|
+| `useDndSensors()` | Hook — MouseSensor (distance:8) + TouchSensor (delay:200, tolerance:5) |
+| `dndAccessibility` | Objeto `{ container: document.body }` |
+| `DndOverlayPortal` | Componente — `DragOverlay` via `createPortal(document.body)`, `dropAnimation={null}` |
+| `SortableRowCtx` | React context `{ attributes, listeners, isDragging } \| null` |
+| `useSortableRow(id)` | Hook — `useSortable` + CSS.Transform + `animateLayoutChanges: () => false` |
+| `DragHandle` | Componente — lê `SortableRowCtx`; prop `disabled`; Tooltip "Arrastar" |
+
+Consumidores:
+
+| Arquivo | Modo | Tela |
+|---------|------|------|
+| `generic-grid.tsx` | Flat (FlatDndTable, DndSortableRow) | Plataformas, Tenants, Pessoas |
+| `generic-grid.tsx` | Grouped (GroupedDndSection, GroupedSortableRow) | Módulos (grid) |
+| `module-fields-tab.tsx` | Fields (FieldTableRow com useSortableRow) | Módulos (aba Campos) |
+
+Regras:
+- Todos `DndContext` usam `useDndSensors()` + `dndAccessibility`
+- Todos `DragOverlay` usam `DndOverlayPortal`
+- Todos `DragHandle` vêm de `dnd-config.tsx`
+- Nenhum `useSortable` direto — sempre usar `useSortableRow`
 
 #### GenericModal (`generic-modal.tsx`)
 
@@ -546,9 +581,15 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 #### ModulesPage — Grid agrupado + inline edit
 
 - Grid com agrupamento duplo: owner_level (MASTER/PLATFORM/TENANT) + type (Módulo/Submódulo)
-- DnD dentro de grupos
-- Clique no nome → renderiza ModuleShowModal inline (com breadcrumb "← Voltar")
+- DnD dentro de grupos; `onReorder={refreshModules}` atualiza sidebar/navbar após reordenação
+- Coluna `name`: renderiza ícone Lucide (campo `record.icon`) ao lado do nome do módulo
+- Coluna `order` removida do grid (posição visual comunica a ordem)
+- Clique no nome → renderiza ModuleShowModal inline
 - ModuleShowModal tabs: Dados ✅, Campos ✅, Grid (futuro), Form (futuro), Restrições (futuro), Seeds (futuro)
+
+**ModuleShowModal — breadcrumb inline:**
+- Header simplificado: botão "← Voltar" + `#ID` + Nome do módulo + badge Ativo/Inativo
+- Removido: ícone + nome do módulo pai + seta `ChevronRight` (que existiam antes)
 
 #### PlatformsPage / TenantsPage — Grid + CRM modal
 
@@ -556,6 +597,9 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 - CRM modal (max-w-6xl): header com badges + tabs (Visão Geral + futuras)
 - 3 cards de credenciais (Sandbox/Produção/Log) com senhas sob demanda
 - Validação de slug em tempo real
+- `PlatformsPage`: `onReorder={refreshPlatforms}` atualiza o Platform Selector do header após drag
+- `TenantModal` / `TenantShowModal`: campo slug exibe prefixo `{platform.slug}_` via `InputGroup + InputAddon` (carrega slug da plataforma selecionada)
+- `PlatformModal`: prop `moduleId` é opcional; aceita prop `slug` diretamente
 
 #### PessoasPage — Grid + CRM modal
 
@@ -574,6 +618,14 @@ Carrega módulos `type=module` ativos. Usado pelo sidebar dinâmico.
 
 Centraliza lista de plataformas e plataforma selecionada.
 - `platforms`, `selectedPlatform`, `selectPlatform()`, `refreshPlatforms()`
+- Busca: `/v1/platforms?per_page=100&sort=order&direction=desc`
+
+### Sandbox Banner (`components/sandbox-banner.tsx`)
+
+- Faixa de aviso no topo do site quando em ambiente sandbox (detectado via `isSandbox()`)
+- CSS variable `--banner-height`: `0px` por padrão, `36px` quando sandbox ativo
+- `Demo3Layout`: usa `useEffect` para setar `--banner-height` no `document.documentElement`; header, navbar e sidebar ajustam `top` via `calc(var(--header-height) + var(--banner-height))`; `pt-` do wrapper principal também compensado
+- Auth layouts (`branded.tsx`, `classic.tsx`): renderizam `<SandboxBanner />` quando `isSandbox()`
 
 ### Sidebar e Navbar
 

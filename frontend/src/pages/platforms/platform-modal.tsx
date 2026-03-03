@@ -28,7 +28,8 @@ interface PlatformModalProps {
   mode: 'create' | 'edit' | 'delete' | 'show' | 'restore';
   record: PlatformForEdit | null;
   onSuccess: () => void;
-  moduleId: number;
+  moduleId?: number;
+  slug?: string;
   size?: 'p' | 'm' | 'g';
 }
 
@@ -57,14 +58,14 @@ function toRenderMode(mode: PlatformModalProps['mode']): RenderMode {
   return mode === 'edit' || mode === 'show' ? 'show-crm' : (mode as RenderMode);
 }
 
-export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, moduleId, size }: PlatformModalProps) {
+export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, moduleId, slug, size }: PlatformModalProps) {
   // Dispatcher: 'edit' e 'show' abrem o modal CRM; os demais vão direto para GenericModal
   const [renderMode, setRenderMode] = useState<RenderMode>(toRenderMode(mode));
 
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
   const [domainLocal, setDomainLocal] = useState('');
-  const [slug, setSlug] = useState('');
+  const [platformSlug, setPlatformSlug] = useState('');
   const [slugManual, setSlugManual] = useState(false);
   const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
   const [expirationDate, setExpirationDate] = useState(defaultExpiration);
@@ -78,14 +79,14 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
         setName(record.name);
         setDomain(record.domain ?? '');
         setDomainLocal(record.domain_local ?? '');
-        setSlug(record.slug);
+        setPlatformSlug(record.slug);
         setSlugManual(true);
         setExpirationDate(record.expiration_date?.split('T')[0] ?? defaultExpiration());
       } else {
         setName('');
         setDomain('');
         setDomainLocal('');
-        setSlug('');
+        setPlatformSlug('');
         setSlugManual(false);
         setExpirationDate(defaultExpiration());
       }
@@ -97,7 +98,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
   // Verificação de disponibilidade do slug com debounce de 500ms
   useEffect(() => {
     if (renderMode !== 'create' && renderMode !== 'edit' && renderMode !== 'restore') return;
-    if (!slug) {
+    if (!platformSlug) {
       setSlugStatus('idle');
       return;
     }
@@ -107,7 +108,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
 
     const timer = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ slug });
+        const params = new URLSearchParams({ slug: platformSlug });
         if (excludeId) params.set('exclude_id', String(excludeId));
         const res = await apiGet<{ available: boolean }>(
           `/v1/platforms/check-slug?${params}`,
@@ -119,24 +120,24 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [slug, record?.id, renderMode]);
+  }, [platformSlug, record?.id, renderMode]);
 
   function handleNameChange(value: string) {
     setName(value);
     if (!slugManual) {
-      setSlug(slugify(value));
+      setPlatformSlug(slugify(value));
     }
   }
 
   function handleSlugChange(value: string) {
     setSlugManual(true);
-    setSlug(value);
+    setPlatformSlug(value);
     setErrors((prev) => { const e = { ...prev }; delete e.slug; return e; });
   }
 
   function handleGetData(): Record<string, unknown> | null {
     if (slugStatus === 'checking' || slugStatus === 'unavailable') return null;
-    return { name, domain, domain_local: domainLocal || null, slug, expiration_date: expirationDate };
+    return { name, domain, domain_local: domainLocal || null, slug: platformSlug, expiration_date: expirationDate };
   }
 
   function handleErrors(errs: Record<string, string[]>) {
@@ -161,6 +162,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
           mode={renderMode}
           size={size}
           moduleId={moduleId}
+          slug={slug}
           record={record}
           onSuccess={onSuccess}
           onGetData={handleGetData}
@@ -168,7 +170,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
           saveDisabled={
             slugStatus === 'checking' ||
             slugStatus === 'unavailable' ||
-            (renderMode === 'create' && (!name.trim() || !domain.trim() || !slug.trim() || !expirationDate))
+            (renderMode === 'create' && (!name.trim() || !domain.trim() || !platformSlug.trim() || !expirationDate))
           }
         >
           <div className="flex flex-col gap-1.5">
@@ -226,7 +228,7 @@ export function PlatformModal({ open, onOpenChange, mode, record, onSuccess, mod
             </Label>
             <Input
               id="platform-slug"
-              value={slug}
+              value={platformSlug}
               onChange={(e) => handleSlugChange(e.target.value)}
               placeholder="slug-da-plataforma"
             />

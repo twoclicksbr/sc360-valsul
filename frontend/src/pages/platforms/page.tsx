@@ -137,6 +137,7 @@ export function PlatformsPage() {
       showActionShow={false}
       showActionRestore={false}
       onDataLoad={handleDataLoad}
+      onReorder={refreshPlatforms}
       renderSearchFilters={renderSearchFilters}
       onClearSearchFilters={handleClearSearchFilters}
       onSearch={handleSearch}
