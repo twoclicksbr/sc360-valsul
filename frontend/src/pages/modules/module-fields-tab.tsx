@@ -36,29 +36,21 @@ import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
 // Types
 // ---------------------------------------------------------------------------
 
-interface FieldRow {
-  id: number;
+interface FieldForEdit {
+  id: number | null;
   module_id: number;
   name: string;
-  label: string;
   type: string;
-  length: string | number | null;
-  precision: number | null;
+  length: string | null;
   nullable: boolean;
-  required: boolean;
+  default: string | null;
   unique: boolean;
   index: boolean;
-  min: number | null;
-  max: number | null;
-  default: string;
-  fk_table: string;
-  fk_column: string;
-  fk_label: string;
-  is_custom: boolean;
-  owner_level: string;
-  owner_id: number;
-  active: boolean;
+  fk_table: string | null;
+  fk_column: string | null;
+  is_system: boolean;
   order: number;
+  active: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,42 +58,76 @@ interface FieldRow {
 // ---------------------------------------------------------------------------
 
 const FIELD_TYPES = [
-  'STRING', 'INTEGER', 'BIGINT', 'BOOLEAN', 'TEXT',
-  'DATE', 'DATETIME', 'DECIMAL', 'FLOAT', 'ENUM', 'JSON',
+  'string', 'text', 'integer', 'bigint', 'boolean', 'date', 'datetime', 'decimal', 'enum',
 ];
 
-const NO_LENGTH_TYPES   = new Set(['TEXT', 'BOOLEAN', 'DATE', 'DATETIME', 'JSON']);
-const TEXT_LENGTH_TYPES = new Set(['DECIMAL', 'FLOAT', 'ENUM']);
+const NO_LENGTH_TYPES = new Set(['text', 'boolean', 'date', 'datetime', 'integer', 'bigint']);
 
 // ---------------------------------------------------------------------------
-// Normalize — converte record da API para FieldRow
+// Normalize — converte record da API para FieldForEdit
 // ---------------------------------------------------------------------------
 
-function normalize(r: Record<string, unknown>): FieldRow {
+function normalize(r: Record<string, unknown>): FieldForEdit {
   return {
-    id:        r.id as number,
+    id:        (r.id as number) ?? null,
     module_id: r.module_id as number,
     name:      (r.name as string) ?? '',
-    label:     (r.label as string) ?? '',
-    type:      ((r.type as string) ?? 'STRING').toUpperCase(),
-    length:    (r.length as string | number | null) ?? null,
-    precision: (r.precision as number | null) ?? null,
+    type:      ((r.type as string) ?? 'string').toLowerCase(),
+    length:    (r.length as string | null) ?? null,
     nullable:  !!(r.nullable),
-    required:  !!(r.required),
+    default:   (r.default as string | null) ?? null,
     unique:    !!(r.unique),
     index:     !!(r.index),
-    min:       (r.min as number | null) ?? null,
-    max:       (r.max as number | null) ?? null,
-    default:   (r.default as string) ?? '',
-    fk_table:    (r.fk_table as string) ?? '',
-    fk_column:   (r.fk_column as string) ?? '',
-    fk_label:    (r.fk_label as string) ?? '',
-    is_custom:   !!(r.is_custom),
-    owner_level: (r.owner_level as string) ?? 'tenant',
-    owner_id:    (r.owner_id as number) ?? 0,
-    active:      r.active !== false,
-    order:       (r.order as number) ?? 1,
+    fk_table:  (r.fk_table as string | null) ?? null,
+    fk_column: (r.fk_column as string | null) ?? null,
+    is_system: !!(r.is_system),
+    order:     (r.order as number) ?? 1,
+    active:    r.active !== false,
   };
+}
+
+// ---------------------------------------------------------------------------
+// toApiPayload
+// ---------------------------------------------------------------------------
+
+function toApiPayload(field: FieldForEdit): Record<string, unknown> {
+  return {
+    module_id:  field.module_id,
+    name:       field.name,
+    type:       field.type,
+    length:     field.length,
+    nullable:   field.nullable,
+    default:    field.default,
+    unique:     field.unique,
+    index:      field.index,
+    fk_table:   field.fk_table,
+    fk_column:  field.fk_column,
+    is_system:  field.is_system,
+    order:      field.order,
+    active:     field.active,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Ordena: id (primeiro) → editáveis (por order ASC) → sistema rodapé
+// ---------------------------------------------------------------------------
+
+const FIXED_BOTTOM = ['order', 'active', 'created_at', 'updated_at', 'deleted_at'];
+
+function sortFields(fields: FieldForEdit[]): FieldForEdit[] {
+  return [...fields].sort((a, b) => {
+    const aIsId    = a.name === 'id';
+    const bIsId    = b.name === 'id';
+    const aIsFixed = a.is_system && a.name !== 'id';
+    const bIsFixed = b.is_system && b.name !== 'id';
+
+    if (aIsId && !bIsId) return -1;
+    if (!aIsId && bIsId) return 1;
+    if (!aIsFixed && !bIsFixed) return a.order - b.order;
+    if (!aIsFixed && bIsFixed)  return -1;
+    if (aIsFixed  && !bIsFixed) return 1;
+    return FIXED_BOTTOM.indexOf(a.name) - FIXED_BOTTOM.indexOf(b.name);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -113,27 +139,24 @@ type FieldOption  = { id: number; name: string };
 
 interface FkModalProps {
   open: boolean;
-  fkTable: string;
-  fkColumn: string;
-  fkLabel: string;
-  onConfirm: (table: string, column: string, label: string) => void;
+  fkTable: string | null;
+  fkColumn: string | null;
+  onConfirm: (table: string, column: string) => void;
   onCancel: () => void;
 }
 
-function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkModalProps) {
+function FkModal({ open, fkTable, fkColumn, onConfirm, onCancel }: FkModalProps) {
   const [modules,        setModules]        = useState<ModuleOption[]>([]);
   const [moduleFields,   setModuleFields]   = useState<FieldOption[]>([]);
   const [loadingModules, setLoadingModules] = useState(false);
   const [loadingFields,  setLoadingFields]  = useState(false);
   const [table,  setTable]  = useState('none');
   const [column, setColumn] = useState('none');
-  const [label,  setLabel]  = useState('none');
 
   useEffect(() => {
     if (!open) return;
-    setTable(fkTable   || 'none');
+    setTable(fkTable  || 'none');
     setColumn(fkColumn || 'none');
-    setLabel(fkLabel   || 'none');
     setLoadingModules(true);
     apiGet<{ data: ModuleOption[] }>(`/v1/modules?per_page=100&sort=order&direction=desc`)
       .then(res => setModules(res.data))
@@ -158,7 +181,6 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
   function handleTableChange(v: string) {
     setTable(v);
     setColumn('none');
-    setLabel('none');
   }
 
   const fieldsDisabled = table === 'none' || loadingFields;
@@ -172,7 +194,7 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
         <div className="flex flex-col gap-3 py-1">
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Módulos</label>
+            <label className="text-sm font-medium">Módulo</label>
             <Select value={table} onValueChange={handleTableChange} disabled={loadingModules}>
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue placeholder="Selecione" />
@@ -201,21 +223,6 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
             </Select>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Texto de Exibição</label>
-            <Select value={label} onValueChange={setLabel} disabled={fieldsDisabled}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none" className="text-sm text-muted-foreground">Selecione</SelectItem>
-                {moduleFields.map(f => (
-                  <SelectItem key={f.id} value={f.name} className="text-sm">{f.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
@@ -225,7 +232,6 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
             onClick={() => onConfirm(
               table  === 'none' ? '' : table,
               column === 'none' ? '' : column,
-              label  === 'none' ? '' : label,
             )}
           >
             Confirmar
@@ -237,52 +243,109 @@ function FkModal({ open, fkTable, fkColumn, fkLabel, onConfirm, onCancel }: FkMo
 }
 
 // ---------------------------------------------------------------------------
-// FieldTableRow
+// SystemFieldRow — campo de sistema (read-only, sem drag, sem delete)
+// ---------------------------------------------------------------------------
+
+function SystemFieldRow({ field }: { field: FieldForEdit }) {
+  const isBigint = field.type === 'bigint';
+
+  return (
+    <tr className="border-b bg-muted/30">
+      {/* Drag handle — vazio */}
+      <td className="w-8 px-1.5" />
+
+      {/* Nome */}
+      <td className="px-1.5 py-1.5">
+        <Input value={field.name} className="h-8 text-sm font-mono opacity-60" disabled />
+      </td>
+
+      {/* Tipo */}
+      <td className="px-1.5 py-1.5" style={{ minWidth: '130px' }}>
+        <Input value={field.type} className="h-8 text-sm opacity-60" disabled />
+      </td>
+
+      {/* Tamanho */}
+      <td className="px-1.5 py-1.5" style={{ width: '96px' }}>
+        <Input value={field.length ?? ''} className="h-8 text-sm opacity-60" disabled />
+      </td>
+
+      {/* Nulo */}
+      <td className="px-1.5 py-1.5 text-center">
+        <Checkbox checked={field.nullable} disabled />
+      </td>
+
+      {/* Default */}
+      <td className="px-1.5 py-1.5">
+        <Input value={field.default ?? ''} className="h-8 text-sm opacity-60" disabled />
+      </td>
+
+      {/* Único */}
+      <td className="px-1.5 py-1.5 text-center">
+        <Checkbox checked={field.unique} disabled />
+      </td>
+
+      {/* Índice */}
+      <td className="px-1.5 py-1.5 text-center">
+        <Checkbox checked={field.index} disabled />
+      </td>
+
+      {/* FK */}
+      <td className="px-1.5 py-1.5 text-center" style={{ width: '60px' }}>
+        {isBigint && field.fk_table && (
+          <span className="text-xs text-blue-500 font-mono">{field.fk_table}</span>
+        )}
+      </td>
+
+      {/* Ações — vazio */}
+      <td className="w-8 px-1.5 py-1.5" />
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FieldTableRow — campo editável (não-sistema)
 // ---------------------------------------------------------------------------
 
 interface FieldTableRowProps {
-  field: FieldRow;
+  field: FieldForEdit;
   isReadOnly: boolean;
-  onChange: (id: number, key: keyof FieldRow, value: unknown) => void;
+  onChange: (id: number, key: keyof FieldForEdit, value: unknown) => void;
   onDelete: (id: number) => void;
 }
 
 function FieldTableRow({ field, isReadOnly, onChange, onDelete }: FieldTableRowProps) {
-  const isCustom    = field.is_custom;
-  const rowReadOnly = isReadOnly || !isCustom;
-
   const { setNodeRef, transform, transition, attributes, listeners, isDragging } = useSortableRow(String(field.id));
   const [fkOpen, setFkOpen] = useState(false);
 
   const style: CSSProperties = { transform, transition, opacity: isDragging ? 0.4 : 1 };
 
-  const isBigint          = field.type === 'BIGINT';
-  const lengthDisabled    = NO_LENGTH_TYPES.has(field.type) || rowReadOnly;
-  const lengthIsText      = TEXT_LENGTH_TYPES.has(field.type);
-  const lengthPlaceholder = field.type === 'ENUM' ? "'a','b','c'" : lengthIsText ? '10,2' : '255';
-  const hasFk             = field.fk_table !== '' || field.fk_column !== '' || field.fk_label !== '';
+  const isBigint       = field.type === 'bigint';
+  const lengthDisabled = NO_LENGTH_TYPES.has(field.type) || isReadOnly;
+  const hasFk          = !!(field.fk_table || field.fk_column);
+
+  const id = field.id!;
 
   return (
     <SortableRowCtx.Provider value={{ attributes, listeners, isDragging }}>
       <tr
         ref={setNodeRef}
         style={style}
-        className={`border-b hover:bg-muted/20 group ${!isCustom ? 'bg-muted/50' : ''}`}
+        className="border-b hover:bg-muted/20 group"
       >
 
         {/* Drag handle */}
         <td className="w-8 px-1.5">
-          <DragHandle disabled={rowReadOnly} />
+          <DragHandle disabled={isReadOnly} />
         </td>
 
         {/* Nome */}
         <td className="px-1.5 py-1.5">
           <Input
             value={field.name}
-            onChange={e => onChange(field.id, 'name', e.target.value)}
+            onChange={e => onChange(id, 'name', e.target.value)}
             className="h-8 text-sm font-mono"
             placeholder="field_name"
-            disabled={rowReadOnly}
+            disabled={isReadOnly}
           />
         </td>
 
@@ -291,15 +354,11 @@ function FieldTableRow({ field, isReadOnly, onChange, onDelete }: FieldTableRowP
           <Select
             value={field.type}
             onValueChange={v => {
-              const wasTextLength = TEXT_LENGTH_TYPES.has(field.type);
-              const isTextLength  = TEXT_LENGTH_TYPES.has(v);
-              const isNoLength    = NO_LENGTH_TYPES.has(v);
-              if (isNoLength || isTextLength || wasTextLength || v === 'BIGINT' || field.type === 'BIGINT') {
-                onChange(field.id, 'length', null);
-              }
-              onChange(field.id, 'type', v);
+              onChange(id, 'type', v);
+              if (v === 'bigint') onChange(id, 'index', true);
+              if (NO_LENGTH_TYPES.has(v)) onChange(id, 'length', null);
             }}
-            disabled={rowReadOnly}
+            disabled={isReadOnly}
           >
             <SelectTrigger className="h-8 text-sm">
               <SelectValue />
@@ -312,9 +371,59 @@ function FieldTableRow({ field, isReadOnly, onChange, onDelete }: FieldTableRowP
           </Select>
         </td>
 
-        {/* Tamanho / FK */}
+        {/* Tamanho */}
         <td className="px-1.5 py-1.5" style={{ width: '96px' }}>
-          {isBigint ? (
+          <Input
+            type="text"
+            value={field.length ?? ''}
+            onChange={e => onChange(id, 'length', e.target.value || null)}
+            className="h-8 text-sm"
+            placeholder="255 ou 10,2"
+            disabled={lengthDisabled}
+          />
+        </td>
+
+        {/* Nulo */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.nullable}
+            onCheckedChange={v => onChange(id, 'nullable', !!v)}
+            disabled={isReadOnly}
+          />
+        </td>
+
+        {/* Default */}
+        <td className="px-1.5 py-1.5">
+          <Input
+            value={field.default ?? ''}
+            onChange={e => onChange(id, 'default', e.target.value || null)}
+            className="h-8 text-sm"
+            placeholder="—"
+            disabled={isReadOnly}
+          />
+        </td>
+
+        {/* Único */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.unique}
+            onCheckedChange={v => onChange(id, 'unique', !!v)}
+            disabled={isReadOnly}
+          />
+        </td>
+
+        {/* Índice */}
+        <td className="px-1.5 py-1.5 text-center">
+          <Checkbox
+            checked={field.index}
+            onCheckedChange={v => onChange(id, 'index', !!v)}
+            disabled={isReadOnly}
+          />
+        </td>
+
+        {/* FK */}
+        <td className="px-1.5 py-1.5 text-center" style={{ width: '60px' }}>
+          {isBigint && (
             <>
               <Button
                 type="button"
@@ -322,7 +431,7 @@ function FieldTableRow({ field, isReadOnly, onChange, onDelete }: FieldTableRowP
                 size="sm"
                 className={`h-8 w-full text-xs gap-1 ${hasFk ? 'border-blue-400 text-blue-600 hover:text-blue-600' : ''}`}
                 onClick={() => setFkOpen(true)}
-                disabled={rowReadOnly}
+                disabled={isReadOnly}
               >
                 <Link2 className="size-3" />
                 FK
@@ -331,91 +440,24 @@ function FieldTableRow({ field, isReadOnly, onChange, onDelete }: FieldTableRowP
                 open={fkOpen}
                 fkTable={field.fk_table}
                 fkColumn={field.fk_column}
-                fkLabel={field.fk_label}
-                onConfirm={(table, column, label) => {
-                  onChange(field.id, 'fk_table',  table);
-                  onChange(field.id, 'fk_column', column);
-                  onChange(field.id, 'fk_label',  label);
+                onConfirm={(table, column) => {
+                  onChange(id, 'fk_table',  table || null);
+                  onChange(id, 'fk_column', column || null);
                   setFkOpen(false);
                 }}
                 onCancel={() => setFkOpen(false)}
               />
             </>
-          ) : (
-            <Input
-              type={lengthIsText ? 'text' : 'number'}
-              value={field.length ?? ''}
-              onChange={e => onChange(field.id, 'length', e.target.value === '' ? null : (lengthIsText ? e.target.value : parseInt(e.target.value, 10)))}
-              className="h-8 text-sm"
-              placeholder={lengthPlaceholder}
-              disabled={lengthDisabled}
-            />
           )}
-        </td>
-
-        {/* Nulo */}
-        <td className="px-1.5 py-1.5 text-center">
-          <Checkbox
-            checked={field.nullable}
-            onCheckedChange={v => onChange(field.id, 'nullable', !!v)}
-            disabled={rowReadOnly}
-          />
-        </td>
-
-        {/* Obrigatório */}
-        <td className="px-1.5 py-1.5 text-center">
-          <Checkbox
-            checked={field.required}
-            onCheckedChange={v => onChange(field.id, 'required', !!v)}
-            disabled={rowReadOnly}
-          />
-        </td>
-
-        {/* Único */}
-        <td className="px-1.5 py-1.5 text-center">
-          <Checkbox
-            checked={field.unique}
-            onCheckedChange={v => onChange(field.id, 'unique', !!v)}
-            disabled={rowReadOnly}
-          />
-        </td>
-
-        {/* Índice */}
-        <td className="px-1.5 py-1.5 text-center">
-          <Checkbox
-            checked={field.index}
-            onCheckedChange={v => onChange(field.id, 'index', !!v)}
-            disabled={rowReadOnly}
-          />
-        </td>
-
-        {/* Default */}
-        <td className="px-1.5 py-1.5">
-          <Input
-            value={field.default ?? ''}
-            onChange={e => onChange(field.id, 'default', e.target.value)}
-            className="h-8 text-sm"
-            placeholder="—"
-            disabled={rowReadOnly}
-          />
-        </td>
-
-        {/* Ativo */}
-        <td className="px-1.5 py-1.5 text-center">
-          <Checkbox
-            checked={field.active}
-            onCheckedChange={v => onChange(field.id, 'active', !!v)}
-            disabled={rowReadOnly}
-          />
         </td>
 
         {/* Deletar */}
         <td className="w-8 px-1.5 py-1.5 text-center">
-          {!isReadOnly && isCustom && (
+          {!isReadOnly && (
             <button
               type="button"
               className="text-destructive opacity-40 hover:opacity-100 transition-opacity"
-              onClick={() => onDelete(field.id)}
+              onClick={() => onDelete(id)}
               title="Remover campo"
             >
               <Trash2 className="size-4" />
@@ -425,34 +467,6 @@ function FieldTableRow({ field, isReadOnly, onChange, onDelete }: FieldTableRowP
       </tr>
     </SortableRowCtx.Provider>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// Converte FieldRow para payload da API (type em minúsculo)
-function toApiPayload(field: FieldRow): Record<string, unknown> {
-  return { ...field, type: field.type.toLowerCase() };
-}
-
-// Ordena campos: id (primeiro) → custom (por order ASC) → fixed bottom (ordem fixa)
-const FIXED_BOTTOM = ['order', 'active', 'created_at', 'updated_at', 'deleted_at'];
-
-function sortFields(fields: FieldRow[]): FieldRow[] {
-  return [...fields].sort((a, b) => {
-    const aIsId     = a.name === 'id';
-    const bIsId     = b.name === 'id';
-    const aIsFixed  = FIXED_BOTTOM.includes(a.name);
-    const bIsFixed  = FIXED_BOTTOM.includes(b.name);
-
-    if (aIsId && !bIsId) return -1;
-    if (!aIsId && bIsId) return 1;
-    if (!aIsFixed && !bIsFixed) return a.order - b.order;
-    if (!aIsFixed && bIsFixed)  return -1;
-    if (aIsFixed  && !bIsFixed) return 1;
-    return FIXED_BOTTOM.indexOf(a.name) - FIXED_BOTTOM.indexOf(b.name);
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -470,18 +484,20 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
   const sensors    = useDndSensors();
   const isReadOnly = mode === 'show';
 
-  const [fields,   setFields]   = useState<FieldRow[]>([]);
+  const [fields,   setFields]   = useState<FieldForEdit[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 
-  // Ref para sempre ter o estado mais recente nos debounce timers
-  const fieldsRef      = useRef<FieldRow[]>([]);
+  const fieldsRef      = useRef<FieldForEdit[]>([]);
   const debounceTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  // Mantém o ref sincronizado com o state
   useEffect(() => { fieldsRef.current = fields; }, [fields]);
 
-  const fieldIds    = useMemo(() => fields.map(f => String(f.id)), [fields]);
+  const nonSystemIds = useMemo(
+    () => fields.filter(f => !f.is_system).map(f => String(f.id)),
+    [fields],
+  );
+
   const activeField = useMemo(
     () => activeId ? fields.find(f => String(f.id) === String(activeId)) ?? null : null,
     [activeId, fields],
@@ -502,7 +518,7 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  function handleChange(id: number, key: keyof FieldRow, value: unknown) {
+  function handleChange(id: number, key: keyof FieldForEdit, value: unknown) {
     setFields(prev => prev.map(f => f.id === id ? { ...f, [key]: value } : f));
 
     const existing = debounceTimers.current.get(id);
@@ -519,23 +535,23 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
   }
 
   async function handleAdd() {
+    const nonSystemFields = fields.filter(f => !f.is_system);
+    const maxOrder = nonSystemFields.length > 0
+      ? Math.max(...nonSystemFields.map(f => f.order))
+      : 1;
+
     try {
       const saved = await apiPost<Record<string, unknown>>(`/v1/module-fields`, {
-        module_id:   moduleId,
-        name:        `campo_${Date.now()}`,
-        label:       'Novo Campo',
-        type:        'string',
-        length:      255,
-        nullable:    true,
-        required:    false,
-        unique:      false,
-        index:       false,
-        main:        false,
-        is_custom:   true,
-        owner_level: 'tenant',
-        owner_id:    0,
-        order:       1,
-        active:      true,
+        module_id:  moduleId,
+        name:       `campo_${Date.now()}`,
+        type:       'string',
+        length:     '255',
+        nullable:   true,
+        unique:     false,
+        index:      false,
+        is_system:  false,
+        order:      maxOrder + 1,
+        active:     true,
       });
       setFields(prev => sortFields([...prev, normalize(saved)]));
     } catch (err) {
@@ -558,27 +574,25 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = fields.findIndex(f => String(f.id) === String(active.id));
-    const newIndex = fields.findIndex(f => String(f.id) === String(over.id));
+    const nonSystemFields = fields.filter(f => !f.is_system);
+    const oldIndex = nonSystemFields.findIndex(f => String(f.id) === String(active.id));
+    const newIndex = nonSystemFields.findIndex(f => String(f.id) === String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(fields, oldIndex, newIndex);
+    const reordered = arrayMove(nonSystemFields, oldIndex, newIndex);
 
-    // Redistribui os valores de order existentes dos campos custom entre as novas posições
-    const oldCustomOrders = fields
-      .filter(f => f.is_custom)
+    const oldOrders = [...nonSystemFields]
       .sort((a, b) => a.order - b.order)
       .map(f => f.order);
 
     let ci = 0;
-    const newFields = reordered.map(f =>
-      f.is_custom ? { ...f, order: oldCustomOrders[ci++] } : f,
-    );
+    const updatedNonSystem = reordered.map(f => ({ ...f, order: oldOrders[ci++] }));
 
-    const orderMap = new Map(fields.map(f => [f.id, f.order]));
-    const changed  = newFields.filter(f => f.order !== orderMap.get(f.id));
+    const orderMap = new Map(nonSystemFields.map(f => [f.id, f.order]));
+    const changed  = updatedNonSystem.filter(f => f.order !== orderMap.get(f.id));
 
-    setFields(sortFields(newFields));
+    const systemFields = fields.filter(f => f.is_system);
+    setFields(sortFields([...systemFields, ...updatedNonSystem]));
 
     try {
       await Promise.all(
@@ -593,6 +607,10 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  const systemTopFields    = fields.filter(f => f.is_system && f.name === 'id');
+  const nonSystemFields    = fields.filter(f => !f.is_system);
+  const systemBottomFields = fields.filter(f => f.is_system && f.name !== 'id');
 
   if (loading) {
     return (
@@ -623,17 +641,20 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
                 <th className="px-2 py-2.5 text-left text-sm font-semibold text-muted-foreground">Tipo</th>
                 <th className="px-2 py-2.5 text-left text-sm font-semibold text-muted-foreground" style={{ width: '96px' }}>Tamanho</th>
                 <th className="px-2 py-2.5 text-center text-sm font-semibold text-muted-foreground" style={{ width: '52px' }}>Nulo</th>
-                <th className="px-2 py-2.5 text-center text-sm font-semibold text-muted-foreground" style={{ width: '76px' }}>Obrigatório</th>
+                <th className="px-2 py-2.5 text-left text-sm font-semibold text-muted-foreground">Default</th>
                 <th className="px-2 py-2.5 text-center text-sm font-semibold text-muted-foreground" style={{ width: '52px' }}>Único</th>
                 <th className="px-2 py-2.5 text-center text-sm font-semibold text-muted-foreground" style={{ width: '52px' }}>Índice</th>
-                <th className="px-2 py-2.5 text-left text-sm font-semibold text-muted-foreground">Default</th>
-                <th className="px-2 py-2.5 text-center text-sm font-semibold text-muted-foreground" style={{ width: '52px' }}>Ativo</th>
+                <th className="px-2 py-2.5 text-center text-sm font-semibold text-muted-foreground" style={{ width: '60px' }}>FK</th>
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
-              <SortableContext items={fieldIds} strategy={verticalListSortingStrategy}>
-                {fields.map(field => (
+              {/* Campos sistema — topo (id) */}
+              {systemTopFields.map(f => <SystemFieldRow key={f.id} field={f} />)}
+
+              {/* Campos editáveis — DnD */}
+              <SortableContext items={nonSystemIds} strategy={verticalListSortingStrategy}>
+                {nonSystemFields.map(field => (
                   <FieldTableRow
                     key={field.id}
                     field={field}
@@ -644,9 +665,12 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
                 ))}
               </SortableContext>
 
+              {/* Campos sistema — rodapé */}
+              {systemBottomFields.map(f => <SystemFieldRow key={f.id} field={f} />)}
+
               {fields.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="text-center py-8 text-sm text-muted-foreground">
+                  <td colSpan={10} className="text-center py-8 text-sm text-muted-foreground">
                     Nenhum campo cadastrado
                   </td>
                 </tr>
@@ -665,7 +689,7 @@ export function ModuleFieldsTab({ moduleId, mode }: ModuleFieldsTabProps) {
                   </td>
                   <td className="px-1.5 py-2 font-mono text-sm">{activeField.name}</td>
                   <td className="px-1.5 py-2 text-sm text-muted-foreground">{activeField.type}</td>
-                  <td colSpan={8} />
+                  <td colSpan={7} />
                 </tr>
               </tbody>
             </table>

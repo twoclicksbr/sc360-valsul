@@ -65,10 +65,22 @@ class ModuleController extends Controller
         }
         ksort($controllers);
 
+        $observers = collect(glob(app_path('Observers') . '/*.php'))
+            ->map(fn($f) => pathinfo($f, PATHINFO_FILENAME))
+            ->sort()
+            ->values();
+
+        $services = collect(glob(app_path('Services') . '/*.php'))
+            ->map(fn($f) => pathinfo($f, PATHINFO_FILENAME))
+            ->sort()
+            ->values();
+
         return response()->json([
             'models'      => $models,
             'requests'    => $requests,
             'controllers' => (object) $controllers,
+            'observers'   => $observers,
+            'services'    => $services,
         ]);
     }
 

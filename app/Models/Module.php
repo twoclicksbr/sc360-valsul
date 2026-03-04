@@ -10,37 +10,24 @@ class Module extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'owner_level',
-        'owner_id',
         'slug',
         'url_prefix',
         'name',
         'icon',
         'type',
+        'is_custom',
         'model',
         'request',
         'controller',
-        'size_modal',
-        'description_index',
-        'description_show',
-        'description_store',
-        'description_update',
-        'description_delete',
-        'description_restore',
-        'after_store',
-        'after_update',
-        'after_restore',
+        'observer',
+        'service',
         'order',
         'active',
     ];
 
     protected $casts = [
-        'owner_id'      => 'integer',
-        'type'          => 'string',
-        'after_store'   => 'string',
-        'after_update'  => 'string',
-        'after_restore' => 'string',
-        'order'         => 'integer',
-        'active'        => 'boolean',
+        'is_custom' => 'boolean',
+        'order'     => 'integer',
+        'active'    => 'boolean',
     ];
 }

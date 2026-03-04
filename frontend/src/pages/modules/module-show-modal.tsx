@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { IconPickerModal } from '@/components/icon-picker-modal';
 import { Badge } from '@/components/ui/badge';
@@ -16,11 +16,10 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { apiGet, apiPut } from '@/lib/api';
 import { useModules } from '@/providers/modules-provider';
 import { type ModuleForEdit } from './module-modal';
@@ -33,13 +32,9 @@ interface ModuleShowModalProps {
   onSuccess: () => void;
   inline?: boolean;
   onBack?: () => void;
-  moduleId?: number;
-  parentName?: string;
-  parentIcon?: string;
 }
 
 type SlugStatus = 'idle' | 'checking' | 'available' | 'unavailable';
-type ScanFiles = { models: string[]; requests: string[]; controllers: Record<string, string[]> };
 type FieldErrors = Record<string, string[]>;
 
 function slugify(value: string): string {
@@ -69,50 +64,34 @@ const TYPE_LABELS: Record<string, { label: string; variant: 'primary' | 'seconda
   pivot:     { label: 'Pivot',     variant: 'warning' },
 };
 
-const OWNER_LABELS: Record<string, { label: string; variant: 'primary' | 'secondary' | 'outline' }> = {
-  master:   { label: 'Master',     variant: 'primary' },
-  platform: { label: 'Plataforma', variant: 'secondary' },
-  tenant:   { label: 'Tenant',     variant: 'outline' },
-};
-
-export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline = false, onBack, moduleId, parentName, parentIcon }: ModuleShowModalProps) {
+export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline = false, onBack }: ModuleShowModalProps) {
   const { refreshModules } = useModules();
-  const [name, setName]               = useState('');
-  const [slug, setSlug]               = useState('');
-  const [slugManual, setSlugManual]   = useState(false);
-  const [slugStatus, setSlugStatus]   = useState<SlugStatus>('idle');
-  const [icon, setIcon]               = useState('');
-  const [type, setType]               = useState('module');
-  const [ownerLevel, setOwnerLevel]   = useState('master');
-  const [model, setModel]             = useState('');
-  const [request, setRequest]         = useState('');
-  const [controller, setController]   = useState('');
-  const [sizeModal, setSizeModal]     = useState('');
-  const [afterStore, setAfterStore]   = useState('');
-  const [afterUpdate, setAfterUpdate] = useState('');
-  const [urlPrefix, setUrlPrefix]       = useState('');
-  const [afterRestore, setAfterRestore] = useState('');
-  const [screenIndex, setScreenIndex]     = useState('none');
-  const [screenCreate, setScreenCreate]   = useState('none');
-  const [screenEdit, setScreenEdit]       = useState('none');
-  const [screenDelete, setScreenDelete]   = useState('none');
-  const [screenRestore, setScreenRestore] = useState('none');
-  const [screenShow, setScreenShow]       = useState('none');
-  const [descIndex, setDescIndex]     = useState('');
-  const [descShow, setDescShow]       = useState('');
-  const [descStore, setDescStore]     = useState('');
-  const [descUpdate, setDescUpdate]   = useState('');
-  const [descDelete, setDescDelete]   = useState('');
-  const [descRestore, setDescRestore] = useState('');
-  const [descriptionsOpen, setDescriptionsOpen] = useState(false);
-  const [active, setActive]             = useState(true);
-  const [saving, setSaving]             = useState(false);
-  const [errors, setErrors]             = useState<FieldErrors>({});
+  const [name, setName]             = useState('');
+  const [slug, setSlug]             = useState('');
+  const [slugManual, setSlugManual] = useState(false);
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
+  const [icon, setIcon]             = useState('');
+  const [type, setType]             = useState('module');
+  const [urlPrefix, setUrlPrefix]   = useState('');
+  const [isCustom, setIsCustom]     = useState(false);
+  const [model, setModel]           = useState('');
+  const [request, setRequest]       = useState('');
+  const [controller, setController] = useState('');
+  const [observer, setObserver]     = useState('');
+  const [service, setService]       = useState('');
+  const [active, setActive]         = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [errors, setErrors]         = useState<FieldErrors>({});
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
-  const [scanFiles, setScanFiles]       = useState<ScanFiles>({ models: [], requests: [], controllers: {} });
-  const [activeTab, setActiveTab]       = useState('dados');
-  const [submodules, setSubmodules]     = useState<Array<{ id: number; name: string; icon: string | null }>>([]);
-  const [parentModule, setParentModule] = useState<{ name: string; icon: string | null } | null>(null);
+  const [activeTab, setActiveTab]   = useState('dados');
+  const [submodules, setSubmodules] = useState<Array<{ id: number; name: string; icon: string | null }>>([]);
+  const [scanFiles, setScanFiles]   = useState<{
+    models: string[];
+    requests: string[];
+    controllers: Record<string, string[]>;
+    observers: string[];
+    services: string[];
+  } | null>(null);
 
   useEffect(() => {
     if ((open || inline) && record) {
@@ -121,31 +100,13 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
       setSlugManual(true);
       setIcon(record.icon ?? '');
       setType(record.type);
-      setOwnerLevel(record.owner_level);
+      setUrlPrefix(record.url_prefix ?? '');
+      setIsCustom(record.is_custom ?? false);
       setModel(record.model ?? '');
       setRequest(record.request ?? '');
       setController(record.controller ?? '');
-      setSizeModal(record.size_modal ?? '');
-      setUrlPrefix(record.url_prefix ?? '');
-      setAfterStore(record.after_store ?? '');
-      setAfterUpdate(record.after_update ?? '');
-      setAfterRestore(record.after_restore ?? '');
-      setScreenIndex(record.screen_index ?? 'none');
-      setScreenCreate(record.screen_create ?? 'none');
-      setScreenEdit(record.screen_edit ?? 'none');
-      setScreenDelete(record.screen_delete ?? 'none');
-      setScreenRestore(record.screen_restore ?? 'none');
-      setScreenShow(record.screen_show ?? 'none');
-      setDescIndex(record.description_index ?? '');
-      setDescShow(record.description_show ?? '');
-      setDescStore(record.description_store ?? '');
-      setDescUpdate(record.description_update ?? '');
-      setDescDelete(record.description_delete ?? '');
-      setDescRestore(record.description_restore ?? '');
-      setDescriptionsOpen(
-        !!(record.description_index || record.description_show || record.description_store ||
-           record.description_update || record.description_delete || record.description_restore)
-      );
+      setObserver(record.observer ?? '');
+      setService(record.service ?? '');
       setActive(record.active ?? true);
       setErrors({});
       setSlugStatus('idle');
@@ -154,26 +115,19 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
     }
   }, [open, inline, record]);
 
-  // Breadcrumb do pai: usa props diretas quando fornecidas, senão busca via API
+  // Busca arquivos disponíveis (apenas quando isCustom=true)
   useEffect(() => {
-    if (!inline) return;
-    if (parentName !== undefined) {
-      setParentModule({ name: parentName, icon: parentIcon ?? null });
-      return;
-    }
-    if (!moduleId) return;
-    apiGet<{ name: string; icon: string | null }>(`/v1/modules/${moduleId}`)
-      .then((res) => setParentModule({ name: res.name, icon: res.icon }))
-      .catch(() => {});
-  }, [inline, moduleId, parentName, parentIcon]);
-
-  // Scan de Models e Requests disponíveis
-  useEffect(() => {
-    if (!open && !inline) return;
-    apiGet<ScanFiles>(`/v1/modules/scan-files`)
+    if ((!open && !inline) || !isCustom) return;
+    apiGet<{
+      models: string[];
+      requests: string[];
+      controllers: Record<string, string[]>;
+      observers: string[];
+      services: string[];
+    }>(`/v1/modules/scan-files`)
       .then(setScanFiles)
       .catch(() => {});
-  }, [open, inline]);
+  }, [open, inline, isCustom]);
 
   // Busca submódulos disponíveis (apenas quando type=module)
   useEffect(() => {
@@ -237,27 +191,12 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
         url_prefix: urlPrefix || null,
         icon: icon || null,
         type,
-        owner_level: ownerLevel,
-        owner_id: record.owner_id,
-        model: model || null,
-        request: request || null,
-        controller: controller || null,
-        size_modal: sizeModal || null,
-        after_store: afterStore || null,
-        after_update: afterUpdate || null,
-        after_restore: afterRestore || null,
-        description_index: descIndex || null,
-        description_show: descShow || null,
-        description_store: descStore || null,
-        description_update: descUpdate || null,
-        description_delete: descDelete || null,
-        description_restore: descRestore || null,
-        screen_index: screenIndex,
-        screen_show: screenShow,
-        screen_create: screenCreate,
-        screen_edit: screenEdit,
-        screen_delete: screenDelete,
-        screen_restore: screenRestore,
+        is_custom: isCustom,
+        model:      isCustom ? model      : 'GenericModel',
+        request:    isCustom ? request    : 'GenericRequest',
+        controller: isCustom ? controller : 'GenericController',
+        observer:   isCustom ? observer   : 'GenericObserver',
+        service:    isCustom ? service    : 'GenericService',
         active,
       });
       onSuccess();
@@ -275,15 +214,12 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
 
   if (!record) return null;
 
-  const typeInfo  = TYPE_LABELS[record.type]  ?? { label: record.type,        variant: 'secondary' as const };
-  const ownerInfo = OWNER_LABELS[record.owner_level] ?? { label: record.owner_level, variant: 'outline' as const };
+  const typeInfo     = TYPE_LABELS[record.type] ?? { label: record.type, variant: 'secondary' as const };
   const saveDisabled = saving || !name.trim() || !slug.trim() || slugStatus === 'checking' || slugStatus === 'unavailable';
 
   const resolved = icon ? (LucideIcons as Record<string, unknown>)[icon] : undefined;
   const LucideIcon: React.ComponentType<{ className?: string }> | null = (
-    resolved != null
-      ? resolved as React.ComponentType<{ className?: string }>
-      : null
+    resolved != null ? resolved as React.ComponentType<{ className?: string }> : null
   );
 
   // ── Shared JSX sections ────────────────────────────────────────────────────
@@ -297,6 +233,8 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
           <h3 className="text-sm font-medium text-foreground py-2.5 ps-2">Identificação</h3>
           <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '1rem' }}>
+
+              {/* Linha 1: Nome | Ícone | Tipo | Customizado */}
               <div style={{ gridColumn: 'span 1' }} className="flex flex-col gap-1.5">
                 <Label>Ícone</Label>
                 <Button
@@ -310,7 +248,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
                 </Button>
               </div>
 
-              <div style={{ gridColumn: 'span 5' }} className="flex flex-col gap-1.5">
+              <div style={{ gridColumn: 'span 3' }} className="flex flex-col gap-1.5">
                 <Label htmlFor="mod-show-name">Nome <span className="text-destructive">*</span></Label>
                 <Input
                   id="mod-show-name"
@@ -333,40 +271,6 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
               </div>
 
               <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-owner">Proprietário</Label>
-                <Select value={ownerLevel} onValueChange={setOwnerLevel}>
-                  <SelectTrigger id="mod-show-owner"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="master">Master</SelectItem>
-                    <SelectItem value="platform">Plataforma</SelectItem>
-                    <SelectItem value="tenant">Tenant</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-size">Tamanho Modal</Label>
-                <Select value={sizeModal} onValueChange={setSizeModal}>
-                  <SelectTrigger id="mod-show-size"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="p">Pequeno</SelectItem>
-                    <SelectItem value="m">Médio</SelectItem>
-                    <SelectItem value="g">Grande</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Card Configuração */}
-      <div data-slot="card" className="items-stretch text-card-foreground border border-border bg-accent/70 rounded-md shadow-none flex flex-col">
-        <div data-slot="card-content" className="grow p-0 flex flex-col">
-          <h3 className="text-sm font-medium text-foreground py-2.5 ps-2">Configuração</h3>
-          <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '1rem' }}>
-              <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
                 <Label htmlFor="mod-show-slug">Slug <span className="text-destructive">*</span></Label>
                 <Input
                   id="mod-show-slug"
@@ -379,7 +283,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
                 {!errors.slug && slugStatus === 'available'   && <p className="text-xs text-green-600">Slug disponível</p>}
               </div>
 
-              <div style={{ gridColumn: 'span 4' }} className="flex flex-col gap-1.5">
+              <div style={{ gridColumn: 'span 3' }} className="flex flex-col gap-1.5">
                 <Label htmlFor="mod-show-url-prefix">Prefixo URL</Label>
                 <div className="flex">
                   <Input
@@ -395,299 +299,151 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
                 </div>
               </div>
 
-              <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-model">Model</Label>
-                <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger id="mod-show-model"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    {scanFiles.models.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.model && <p className="text-sm text-destructive">{errors.model[0]}</p>}
+              <div style={{ gridColumn: 'span 1' }} className="flex flex-col gap-1.5">
+                <Label>Customizado</Label>
+                <div className="flex items-center gap-2 h-8.5">
+                  <Switch
+                    id="mod-show-is-custom"
+                    checked={isCustom}
+                    onCheckedChange={setIsCustom}
+                    size="sm"
+                  />
+                  {isCustom ? (
+                    <Badge
+                      variant="primary"
+                      appearance="light"
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => setIsCustom(false)}
+                    >
+                      Sim
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      appearance="light"
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => setIsCustom(true)}
+                    >
+                      Não
+                    </Badge>
+                  )}
+                </div>
               </div>
 
-              <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-request">Request</Label>
-                <Select value={request} onValueChange={setRequest}>
-                  <SelectTrigger id="mod-show-request"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    {scanFiles.requests.map(r => (
-                      <SelectItem key={r} value={r}>{r}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.request && <p className="text-sm text-destructive">{errors.request[0]}</p>}
-              </div>
-
-              <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-controller">Controller</Label>
-                <Select value={controller} onValueChange={setController}>
-                  <SelectTrigger id="mod-show-controller"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(scanFiles.controllers).map(([folder, items]) => (
-                      <SelectGroup key={folder}>
-                        <SelectLabel>{folder}</SelectLabel>
-                        {items.map(c => {
-                          const val = folder ? `${folder}\\${c}` : c;
-                          return <SelectItem key={val} value={val}>{c}</SelectItem>;
-                        })}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.controller && <p className="text-sm text-destructive">{errors.controller[0]}</p>}
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Linha 3: Ações de Comportamento (col-3) + Tela de Exibição (col-3) + Submódulos (col-6) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '1rem', alignItems: 'stretch' }}>
+      {/* Card Configuração — visível apenas quando isCustom=true */}
+      {isCustom && (
+        <div data-slot="card" className="items-stretch text-card-foreground border border-border bg-accent/70 rounded-md shadow-none flex flex-col">
+          <div data-slot="card-content" className="grow p-0 flex flex-col">
+            <h3 className="text-sm font-medium text-foreground py-2.5 ps-2">Configuração</h3>
+            <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '1rem' }}>
 
-        {/* Card Tela de Exibição */}
-        <div style={{ gridColumn: 'span 4' }} data-slot="card" className="items-stretch text-card-foreground border border-border bg-accent/70 rounded-md shadow-none flex flex-col">
+                <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
+                  <Label htmlFor="mod-show-model">Model</Label>
+                  <Select value={model || '__none__'} onValueChange={v => setModel(v === '__none__' ? '' : v)}>
+                    <SelectTrigger id="mod-show-model"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
+                      {(scanFiles?.models ?? []).map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {errors.model && <p className="text-sm text-destructive">{errors.model[0]}</p>}
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
+                  <Label htmlFor="mod-show-request">Request</Label>
+                  <Select value={request || '__none__'} onValueChange={v => setRequest(v === '__none__' ? '' : v)}>
+                    <SelectTrigger id="mod-show-request"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
+                      {(scanFiles?.requests ?? []).map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {errors.request && <p className="text-sm text-destructive">{errors.request[0]}</p>}
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
+                  <Label htmlFor="mod-show-controller">Controller</Label>
+                  <Select value={controller || '__none__'} onValueChange={v => setController(v === '__none__' ? '' : v)}>
+                    <SelectTrigger id="mod-show-controller"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
+                      {Object.entries(scanFiles?.controllers ?? {}).map(([group, items]) =>
+                        items.map(c => {
+                          const val = group === 'Raiz' ? c : `${group}\\${c}`;
+                          return <SelectItem key={val} value={val}>{val}</SelectItem>;
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {errors.controller && <p className="text-sm text-destructive">{errors.controller[0]}</p>}
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
+                  <Label htmlFor="mod-show-observer">Observer</Label>
+                  <Select value={observer || '__none__'} onValueChange={v => setObserver(v === '__none__' ? '' : v)}>
+                    <SelectTrigger id="mod-show-observer"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
+                      {(scanFiles?.observers ?? []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {errors.observer && <p className="text-sm text-destructive">{errors.observer[0]}</p>}
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
+                  <Label htmlFor="mod-show-service">Service</Label>
+                  <Select value={service || '__none__'} onValueChange={v => setService(v === '__none__' ? '' : v)}>
+                    <SelectTrigger id="mod-show-service"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
+                      {(scanFiles?.services ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {errors.service && <p className="text-sm text-destructive">{errors.service[0]}</p>}
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Card Submódulos — visível apenas quando type=module */}
+      {type === 'module' && (
+        <div data-slot="card" className="items-stretch text-card-foreground border border-border bg-accent/70 rounded-md shadow-none flex flex-col">
           <div data-slot="card-content" className="grow p-0 flex flex-col min-h-0">
-            <h3 className="text-sm font-medium text-foreground py-2.5 ps-2 shrink-0">Tela de Exibição</h3>
-            <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5 space-y-3 flex-1">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-screen-index">Index</Label>
-                  <Select value={screenIndex} onValueChange={setScreenIndex}>
-                    <SelectTrigger id="mod-screen-index"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="page">Tela</SelectItem>
-                      <SelectItem value="modal">Modal</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      {/* <SelectItem value="card">Card</SelectItem> */}
-                    </SelectContent>
-                  </Select>
+            <h3 className="text-sm font-medium text-foreground py-2.5 ps-2 shrink-0">Submódulos</h3>
+            <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5 overflow-y-auto flex-1">
+              {submodules.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum submódulo disponível.</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-3">
+                  {submodules.map((sub) => {
+                    const SubIcon = sub.icon
+                      ? ((LucideIcons as Record<string, unknown>)[sub.icon] as React.ComponentType<{ className?: string }> | undefined)
+                      : undefined;
+                    return (
+                      <label key={sub.id} className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox size="sm" />
+                        {SubIcon && <SubIcon className="size-3.5 text-muted-foreground shrink-0" />}
+                        <span className="text-sm">{sub.name}</span>
+                      </label>
+                    );
+                  })}
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-screen-show">Visualizar</Label>
-                  <Select value={screenShow} onValueChange={setScreenShow}>
-                    <SelectTrigger id="mod-screen-show"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="page">Tela</SelectItem>
-                      <SelectItem value="modal">Modal</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      {/* <SelectItem value="card">Card</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-screen-create">Criar</Label>
-                  <Select value={screenCreate} onValueChange={setScreenCreate}>
-                    <SelectTrigger id="mod-screen-create"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="page">Tela</SelectItem>
-                      <SelectItem value="modal">Modal</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      {/* <SelectItem value="card">Card</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-screen-edit">Editar</Label>
-                  <Select value={screenEdit} onValueChange={setScreenEdit}>
-                    <SelectTrigger id="mod-screen-edit"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="page">Tela</SelectItem>
-                      <SelectItem value="modal">Modal</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      {/* <SelectItem value="card">Card</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-screen-delete">Deletar</Label>
-                  <Select value={screenDelete} onValueChange={setScreenDelete}>
-                    <SelectTrigger id="mod-screen-delete"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="page">Tela</SelectItem>
-                      <SelectItem value="modal">Modal</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      {/* <SelectItem value="card">Card</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-screen-restore">Restaurar</Label>
-                  <Select value={screenRestore} onValueChange={setScreenRestore}>
-                    <SelectTrigger id="mod-screen-restore"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="page">Tela</SelectItem>
-                      <SelectItem value="modal">Modal</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      {/* <SelectItem value="card">Card</SelectItem> */}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-              </div>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Card Ações de Comportamento */}
-        <div style={{ gridColumn: 'span 2' }} data-slot="card" className="items-stretch text-card-foreground border border-border bg-accent/70 rounded-md shadow-none flex flex-col">
-          <div data-slot="card-content" className="grow p-0 flex flex-col min-h-0">
-            <h3 className="text-sm font-medium text-foreground py-2.5 ps-2 shrink-0">Ações de Comportamento</h3>
-            <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5 space-y-3 flex-1">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-after-store">Após Criar</Label>
-                <Select value={afterStore} onValueChange={setAfterStore}>
-                  <SelectTrigger id="mod-show-after-store"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="index">Index</SelectItem>
-                    <SelectItem value="show">Visualizar</SelectItem>
-                    <SelectItem value="edit">Editar</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-after-update">Após Editar</Label>
-                <Select value={afterUpdate} onValueChange={setAfterUpdate}>
-                  <SelectTrigger id="mod-show-after-update"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="index">Index</SelectItem>
-                    <SelectItem value="show">Visualizar</SelectItem>
-                    <SelectItem value="edit">Editar</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-after-restore">Após Restaurar</Label>
-                <Select value={afterRestore} onValueChange={setAfterRestore}>
-                  <SelectTrigger id="mod-show-after-restore"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="index">Index</SelectItem>
-                    <SelectItem value="show">Visualizar</SelectItem>
-                    <SelectItem value="edit">Editar</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </div>
-
-
-        {/* Card Submódulos — visível apenas quando type=module */}
-        {type === 'module' ? (
-          <div style={{ gridColumn: 'span 6' }} data-slot="card" className="items-stretch text-card-foreground border border-border bg-accent/70 rounded-md shadow-none flex flex-col">
-            <div data-slot="card-content" className="grow p-0 flex flex-col min-h-0">
-              <h3 className="text-sm font-medium text-foreground py-2.5 ps-2 shrink-0">Submódulos</h3>
-              <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5 overflow-y-auto flex-1">
-                {submodules.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum submódulo disponível.</p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-3">
-                    {submodules.map((sub) => {
-                      const SubIcon = sub.icon
-                        ? ((LucideIcons as Record<string, unknown>)[sub.icon] as React.ComponentType<{ className?: string }> | undefined)
-                        : undefined;
-                      return (
-                        <label key={sub.id} className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox size="sm" />
-                          {SubIcon && <SubIcon className="size-3.5 text-muted-foreground shrink-0" />}
-                          <span className="text-sm">{sub.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ gridColumn: 'span 6' }} />
-        )}
-      </div>
-
-      {/* Card Descrições */}
-      <div data-slot="card" className="items-stretch text-card-foreground border border-border bg-accent/70 rounded-md shadow-none flex flex-col">
-        <div data-slot="card-content" className="grow p-0 flex flex-col">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 py-2.5 ps-2 text-sm font-medium text-foreground hover:text-foreground/80 text-left"
-            onClick={() => setDescriptionsOpen((v) => !v)}
-          >
-            {descriptionsOpen
-              ? <ChevronDown className="size-4 text-muted-foreground shrink-0" />
-              : <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-            }
-            Descrições
-          </button>
-          {descriptionsOpen && <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-desc-index">Descrição Index</Label>
-                <Textarea
-                  id="mod-show-desc-index"
-                  value={descIndex}
-                  onChange={(e) => setDescIndex(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-desc-show">Descrição Visualizar</Label>
-                <Textarea
-                  id="mod-show-desc-show"
-                  value={descShow}
-                  onChange={(e) => setDescShow(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-desc-store">Descrição Criar</Label>
-                <Textarea
-                  id="mod-show-desc-store"
-                  value={descStore}
-                  onChange={(e) => setDescStore(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-desc-update">Descrição Editar</Label>
-                <Textarea
-                  id="mod-show-desc-update"
-                  value={descUpdate}
-                  onChange={(e) => setDescUpdate(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-desc-delete">Descrição Deletar</Label>
-                <Textarea
-                  id="mod-show-desc-delete"
-                  value={descDelete}
-                  onChange={(e) => setDescDelete(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="mod-show-desc-restore">Descrição Restaurar</Label>
-                <Textarea
-                  id="mod-show-desc-restore"
-                  value={descRestore}
-                  onChange={(e) => setDescRestore(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-          </div>}
-        </div>
-      </div>
+      )}
 
     </div>
   );
@@ -746,7 +502,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
   if (inline) {
     return (
       <>
-        {/* Linha 1: ← Voltar | #ID + Nome + [Ativo]          [Módulo] [Master] */}
+        {/* Linha 1: ← Voltar | #ID + Nome + [Ativo]          [Módulo] */}
         <div className="flex items-center justify-between gap-2 px-4 py-3">
           <div className="flex items-center gap-2 min-w-0">
             <Button
@@ -758,7 +514,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
               <ArrowLeft className="size-4" />
               Voltar
             </Button>
-<span className="text-muted-foreground font-normal text-base shrink-0">{formatId(record.id)}</span>
+            <span className="text-muted-foreground font-normal text-base shrink-0">{formatId(record.id)}</span>
             <span className="text-xl font-bold leading-tight truncate">{record.name}</span>
             {record.active
               ? <Badge variant="success" appearance="light" className="shrink-0">Ativo</Badge>
@@ -767,7 +523,6 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
           </div>
           <div className="shrink-0 flex items-center gap-2">
             <Badge variant={typeInfo.variant}>{typeInfo.label}</Badge>
-            <Badge variant={ownerInfo.variant} appearance="light">{ownerInfo.label}</Badge>
           </div>
         </div>
 
@@ -854,7 +609,6 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
             </div>
             <div className="shrink-0 flex items-center gap-2">
               <Badge variant={typeInfo.variant}>{typeInfo.label}</Badge>
-              <Badge variant={ownerInfo.variant} appearance="light">{ownerInfo.label}</Badge>
             </div>
           </div>
 
@@ -905,7 +659,6 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
                 <TabsContent value="seeds" className="flex-1 overflow-y-auto p-6">
                   <p className="text-sm text-muted-foreground">Em desenvolvimento</p>
                 </TabsContent>
-
               </Tabs>
             </div>
           </div>

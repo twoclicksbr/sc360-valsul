@@ -161,18 +161,17 @@ id → campos específicos → order (default 1) → active (default true) → t
 
 | Tabela | Campos |
 |--------|--------|
-| `modules` | owner_level (enum: master/platform/tenant, default tenant), owner_id (default 0), slug (unique), url_prefix (nullable), name, icon (nullable), type (enum: module/submodule, default module), model, request, controller (nullable), size_modal (enum: p/m/g, default m), description_index, description_show, description_store, description_update, description_delete, description_restore, after_store, after_update, after_restore, active, order |
-| `module_fields` | module_id (FK modules, cascade), name, label, icon (nullable), type (string), length (int, nullable), precision (int, nullable), default (nullable), nullable (bool), required (bool), min (int, nullable), max (int, nullable), unique (bool), index (bool), unique_table (nullable), unique_column (nullable), fk_table (nullable), fk_column (nullable), fk_label (nullable), auto_from (nullable), auto_type (nullable), main (bool), is_custom (bool), owner_level, owner_id, order, active |
+| `modules` | slug (unique), url_prefix (nullable), name, icon (nullable), type (enum: module/submodule/pivot, default module), is_custom (bool, default false), model (default GenericModel), request (default GenericRequest), controller (default GenericController), observer (default GenericObserver), service (default GenericService), order, active |
+| `module_fields` | module_id (FK modules, cascade), name, type (string, default string), length (string, nullable), nullable (bool), default (nullable), unique (bool), index (bool), fk_table (nullable), fk_column (nullable), is_system (bool, default false), order, active |
 
-Campos `after_*` são combobox com opções: `index`, `show`, `create`, `edit`.
-- `owner_level` = nível de propriedade do módulo (master = TwoClicks, platform = plataforma, tenant = cliente)
-- `owner_id` = ID do owner (0 = todos / sem dono específico)
 - `slug` = identificador único usado na URL
 - `url_prefix` = prefixo opcional de URL antes do slug
 - `icon` = nome do ícone Lucide (ex: `Users`, `Package`) — renderizado dinamicamente
-- `controller` = controller específica no formato `System\\TenantController` (nullable — usa ModuleController genérica se nulo)
-- `size_modal` = tamanho padrão do modal CRUD (p/m/g)
-- `type` = apenas `module` ou `submodule` (pivot removido)
+- `is_custom` = true quando o módulo usa classes PHP específicas (Model/Request/Controller/Observer/Service customizados); false usa GenericModel/GenericRequest etc.
+- `controller` = controller específica no formato `System\\TenantController`; default `GenericController`
+- `type` = `module`, `submodule` ou `pivot`
+- `is_system` = true para campos criados pelo Observer (id, order, active, created_at, updated_at, deleted_at) — read-only na UI, não arrastáveis
+- `length` = string (ex: `255` para string, `10,2` para decimal/enum)
 
 #### Tabelas de Tipo (referência) — não implementadas
 
@@ -240,9 +239,9 @@ Tudo que não é motor nasce da configuração. O primeiro módulo 100% dinâmic
 
 Fluxo: cadastra módulo → define campos (module_fields) → monta tela no page builder (module_pages) → configura permissões (module_permissions) → roda seeds se necessário (module_seeds).
 
-## Ownership
+## is_custom vs Generic
 
-Cada módulo/campo tem `owner_level` (master/platform/tenant) e `owner_id`. Só o dono altera. Níveis abaixo herdam e adicionam, nunca alteram o que veio de cima.
+Módulos com `is_custom=false` usam classes genéricas (`GenericModel`, `GenericRequest`, `GenericController`, `GenericObserver`, `GenericService`). Módulos com `is_custom=true` definem classes PHP específicas. O campo `is_custom` é um switch na UI — quando false, os campos de classe ficam ocultos e o payload envia os valores Generic* automaticamente.
 
 ---
 
@@ -321,7 +320,7 @@ Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `
 | GET | `/v1/{module}` | `index` | Lista paginada com sort, per_page e filtros |
 | POST | `/v1/{module}` | `store` | Cria registro (usa Request dinâmica) |
 | GET | `/v1/{module}/check-slug` | `checkSlug` | Verifica disponibilidade de slug |
-| GET | `/v1/{module}/scan-files` | `scanFiles` | Retorna Models, Requests e Controllers disponíveis |
+| GET | `/v1/{module}/scan-files` | `scanFiles` | Retorna Models, Requests, Controllers, Observers e Services disponíveis |
 | GET | `/v1/{module}/{id}` | `show` | Exibe registro (inclui soft-deleted) |
 | PUT/PATCH | `/v1/{module}/{id}` | `update` | Atualiza registro |
 | DELETE | `/v1/{module}/{id}` | `destroy` | Soft delete + seta active=false |
@@ -382,8 +381,8 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `Platform` | `tc_master` (explícita) | hidden passwords; casts encrypted + `'order' => 'integer'`; campos `domain`, `domain_local`; `tenants()` hasMany |
 | `User` | default (dinâmica) | Sanctum HasApiTokens |
 | `Person` | default (dinâmica) | cast `birth_date` como `'date:Y-m-d'` |
-| `Module` | default (dinâmica) | — |
-| `ModuleField` | default (dinâmica) | `module()` belongsTo; casts int/bool |
+| `Module` | default (dinâmica) | fillable: slug, url_prefix, name, icon, type, is_custom, model, request, controller, observer, service, order, active; casts: is_custom/order/active |
+| `ModuleField` | default (dinâmica) | `module()` belongsTo; fillable: module_id, name, type, length, nullable, default, unique, index, fk_table, fk_column, is_system, order, active; casts: nullable/unique/index/is_system bool, order int |
 | `PersonalAccessToken` | via `getConnectionName()` | Retorna `DB::getDefaultConnection()` |
 
 ### Migrations
@@ -428,7 +427,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 
 | Observer | Gatilho | O que faz |
 |----------|---------|-----------|
-| `ModuleObserver` | `created` | Cria 6 campos padrão no module_fields (id, order, active, created_at, updated_at, deleted_at) |
+| `ModuleObserver` | `created` | Cria 6 campos padrão no module_fields com `is_system=true` (id, order, active, created_at, updated_at, deleted_at) |
 | `TenantObserver` | `creating` | Gera slug, db_name, sand/prod/log user+password, expiration_date |
 | `TenantObserver` | `created` | Chama `TenantDatabaseService::provision()` |
 | `PlatformObserver` | `creating` | Gera slug, db_name = `{slug}_master`, sand/prod/log user+password, expiration_date |
@@ -446,7 +445,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | Seeder | O que faz |
 |--------|-----------|
 | `DatabaseSeeder` | Chama TcMasterSeeder + AdminSeeder |
-| `TcMasterSeeder` | Cria: Platform "TwoClicks" (slug=tc, domain=twoclicks.com.br, domain_local=tc.test, validade +10 anos) → Tenant "Master" (slug=master, platform=tc, validade +10 anos) → 4 Modules (modules, module-fields, platforms, tenants) |
+| `TcMasterSeeder` | Cria: Platform "TwoClicks" (slug=tc, domain=twoclicks.com.br, domain_local=tc.test, validade +10 anos) → Tenant "Master" (slug=master, platform=tc, validade +10 anos) → 4 Modules com is_custom=true: modules (observer=ModuleObserver, service=GenericService), module-fields (controller=GenericController), platforms (observer=PlatformObserver, service=PlatformDatabaseService), tenants (observer=TenantObserver, service=TenantDatabaseService) |
 | `AdminSeeder` | Cria person "Alex Twoclicks Technology" (birth_date=1985-05-09) + user alex@twoclicks.com.br (password: Alex1985@) |
 
 ### Requests (`app/Http/Requests/`)
@@ -457,8 +456,8 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `TenantRequest` | platform_id (required, exists:tc_master.platforms), slug (unique:tc_master.tenants), demais credenciais pelo Observer |
 | `PersonRequest` | name (required), birth_date (nullable) |
 | `UserRequest` | person_id (required, FK), email (unique), password (required no create, nullable no update) |
-| `ModuleRequest` | owner_level, owner_id, slug, url_prefix, name, icon, type, model, request, controller, size_modal, descriptions, after_* |
-| `ModuleFieldRequest` | module_id, name, label, icon, type, length, precision, default, nullable, required, min, max, unique, index, fk_*, auto_*, main, is_custom, owner_level, owner_id, order, active |
+| `ModuleRequest` | slug (required, unique), url_prefix (nullable), name (required), icon (nullable), type (required: module/submodule/pivot), is_custom (nullable bool), model (required), request (required), controller (required), observer (required), service (required), order (nullable int), active (nullable bool) |
+| `ModuleFieldRequest` | module_id (required, exists:modules), name (required), type (required: string/text/integer/bigint/boolean/date/datetime/decimal/enum), length (nullable string max:50), nullable (nullable bool), default (nullable string), unique (nullable bool), index (nullable bool), fk_table (nullable, required_if:type,bigint), fk_column (nullable, required_if:type,bigint), is_system (nullable bool), order (nullable int), active (nullable bool) |
 
 **Módulos de sistema** (modules, platforms, tenants, users) mantêm Model + Request + Observer hardcoded. **Módulos criados pela UI** usam validação dinâmica baseada em module_fields.
 
@@ -594,7 +593,7 @@ Consumidores:
 |---------|------|------|
 | `generic-grid.tsx` | Flat (FlatDndTable, DndSortableRow) | Plataformas, Tenants, Pessoas |
 | `generic-grid.tsx` | Grouped (GroupedDndSection, GroupedSortableRow) | Módulos (grid) |
-| `module-fields-tab.tsx` | Fields (FieldTableRow com useSortableRow) | Módulos (aba Campos) |
+| `module-fields-tab.tsx` | Fields (FieldTableRow + SystemFieldRow com useSortableRow) | Módulos (aba Campos) |
 
 Regras:
 - Todos `DndContext` usam `useDndSensors()` + `dndAccessibility`
@@ -622,16 +621,43 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 
 #### ModulesPage — Grid agrupado + inline edit
 
-- Grid com agrupamento duplo: owner_level (MASTER/PLATFORM/TENANT) + type (Módulo/Submódulo)
+- Grid com agrupamento simples por `type` (Módulo/Submódulo/Pivot)
 - DnD dentro de grupos; `onReorder={refreshModules}` atualiza sidebar/navbar após reordenação
 - Coluna `name`: renderiza ícone Lucide (campo `record.icon`) ao lado do nome do módulo
 - Coluna `order` removida do grid (posição visual comunica a ordem)
+- Filtro de pesquisa: apenas por Tipo (removido filtro Proprietário)
 - Clique no nome → renderiza ModuleShowModal inline
 - ModuleShowModal tabs: Dados ✅, Campos ✅, Grid (futuro), Form (futuro), Restrições (futuro), Seeds (futuro)
 
-**ModuleShowModal — breadcrumb inline:**
-- Header simplificado: botão "← Voltar" + `#ID` + Nome do módulo + badge Ativo/Inativo
-- Removido: ícone + nome do módulo pai + seta `ChevronRight` (que existiam antes)
+**ModuleShowModal — aba Dados:**
+- Header: botão "← Voltar" + `#ID` + Nome + badge Ativo/Inativo + badge Tipo (sem badge owner_level)
+- Campos: Ícone, Nome, Tipo, Slug, URL Prefix, Customizado (switch `is_custom`)
+- Quando `is_custom=true`: exibe selects de Model, Request, Controller, Observer, Service (populados via `scanFiles`)
+- `scanFiles` disparado apenas quando `isCustom=true`
+- Card "Configuração", "Ações de Comportamento" e "Descrições" removidos
+- Card "Submódulos": grid 4 colunas (era 3); visível apenas quando type=module
+
+**`ModuleShowModalProps`:** props `moduleId`, `parentName`, `parentIcon` removidas
+
+**`ModuleForEdit` interface:** removidos owner_level, owner_id, size_modal, description_*, after_*, screen_*; adicionados is_custom (bool), observer (string), service (string); model/request/controller agora string (não nullable)
+
+**`ModuleModal` (create/edit rápido):**
+- Removido select "Proprietário"; adicionado Switch "Customizado" (`is_custom`)
+- Quando `is_custom=true`: exibe inputs para Model, Request, Controller, Observer, Service
+- Quando `is_custom=false`: payload envia Generic* para todos os campos de classe
+
+**`ModuleFieldsTab` (aba Campos):**
+- Interface `FieldForEdit` (ex-`FieldRow`): removidos label, precision, required, min, max, fk_label, auto_from, auto_type, main, is_custom, owner_level, owner_id; adicionado is_system; id agora `number | null`
+- Tipos em minúsculo: `string`, `text`, `integer`, `bigint`, `boolean`, `date`, `datetime`, `decimal`, `enum`
+- `NO_LENGTH_TYPES`: text, boolean, date, datetime, integer, bigint (sem campo Tamanho)
+- Colunas da tabela: Nome | Tipo | Tamanho | Nulo | Default | Único | Índice | FK | (delete)
+  - Removidas colunas "Obrigatório" e "Ativo"; adicionada coluna "FK" (exibida apenas para bigint)
+  - `length` agora campo texto livre (ex: `255` ou `10,2`)
+- Novo componente `SystemFieldRow`: linha read-only (sem drag, sem delete, fundo muted) para campos `is_system=true`
+- Layout: `systemTopFields` (id) → `nonSystemIds` (DnD) → `systemBottomFields` (order, active, timestamps)
+- Delete: qualquer campo não-system pode ser deletado (removida guarda `isCustom`)
+- `handleAdd()`: novo campo com `order = maxOrder(nonSystem) + 1`
+- `FkModal`: removido campo `fk_label`; `onConfirm` retorna `(table, column)` apenas
 
 #### PlatformsPage / TenantsPage — Grid + CRM modal
 

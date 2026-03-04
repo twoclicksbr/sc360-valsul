@@ -11,44 +11,16 @@ return new class extends Migration
         Schema::create('module_fields', function (Blueprint $table) {
             $table->id();
             $table->foreignId('module_id')->constrained('modules')->cascadeOnDelete();
-
-            // Identidade
             $table->string('name');
-            $table->string('label');
-            $table->string('icon', 100)->nullable();
-
-            // Tipo e Estrutura
-            $table->string('type', 50);
-            $table->integer('length')->nullable();
-            $table->integer('precision')->nullable();
-            $table->string('default')->nullable();
-
-            // Validação
+            $table->string('type')->default('string');
+            $table->string('length')->nullable();
             $table->boolean('nullable')->default(false);
-            $table->boolean('required')->default(false);
-            $table->string('min', 50)->nullable();
-            $table->string('max', 50)->nullable();
-
-            // Unicidade
+            $table->string('default')->nullable();
             $table->boolean('unique')->default(false);
             $table->boolean('index')->default(false);
-            $table->string('unique_table')->nullable();
-            $table->string('unique_column')->nullable();
-
-            // Relacionamento (FK)
             $table->string('fk_table')->nullable();
             $table->string('fk_column')->nullable();
-            $table->string('fk_label')->nullable();
-
-            // Automação
-            $table->string('auto_from')->nullable();
-            $table->string('auto_type', 50)->nullable();
-
-            // Controle
-            $table->boolean('main')->default(false);
-            $table->boolean('is_custom')->default(false);
-            $table->enum('owner_level', ['master', 'platform', 'tenant'])->default('tenant');
-            $table->unsignedBigInteger('owner_id')->default(0);
+            $table->boolean('is_system')->default(false);
             $table->integer('order')->default(1);
             $table->boolean('active')->default(true);
             $table->timestamps();

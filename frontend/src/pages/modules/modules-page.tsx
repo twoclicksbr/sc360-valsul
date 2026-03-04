@@ -13,7 +13,6 @@ export function ModulesPage() {
   const { refreshModules } = useModules();
   const [selectedModule, setSelectedModule] = useState<ModuleForEdit | null>(null);
   const [gridKey, setGridKey] = useState(0);
-  const [filterOwnerLevel, setFilterOwnerLevel] = useState('all');
   const [filterType, setFilterType] = useState('all');
 
   function handleGoInline(record: ModuleForEdit) {
@@ -30,40 +29,22 @@ export function ModulesPage() {
   }
 
   const handleClearSearchFilters = useCallback(() => {
-    setFilterOwnerLevel('all');
     setFilterType('all');
   }, []);
 
   const handleSearch = useCallback((_baseFilters: Record<string, string>): Record<string, string> => {
     const extra: Record<string, string> = {};
-    if (filterOwnerLevel !== 'all') extra['owner_level'] = filterOwnerLevel;
     if (filterType !== 'all') extra['type'] = filterType;
     return extra;
-  }, [filterOwnerLevel, filterType]);
+  }, [filterType]);
 
   const hasModuleFilters = useMemo(
-    () => filterOwnerLevel !== 'all' || filterType !== 'all',
-    [filterOwnerLevel, filterType],
+    () => filterType !== 'all',
+    [filterType],
   );
 
   const renderSearchFilters = (
     <div className="grid grid-cols-12 gap-4 items-end">
-
-      {/* Proprietário */}
-      <div className="col-span-3 flex flex-col gap-1.5">
-        <Label>Proprietário</Label>
-        <Select value={filterOwnerLevel} onValueChange={setFilterOwnerLevel}>
-          <SelectTrigger>
-            <SelectValue placeholder="—" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">—</SelectItem>
-            <SelectItem value="master">Master</SelectItem>
-            <SelectItem value="platform">Plataforma</SelectItem>
-            <SelectItem value="tenant">Tenant</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* Tipo */}
       <div className="col-span-3 flex flex-col gap-1.5">
@@ -94,8 +75,6 @@ export function ModulesPage() {
           record={selectedModule}
           onSuccess={handleSuccess}
           onBack={handleBack}
-          parentName="Módulos"
-          parentIcon="LayoutGrid"
         />
       </Container>
     );
@@ -112,7 +91,6 @@ export function ModulesPage() {
             key: 'name',
             label: 'Nome',
             sortable: true,
-            // meta: { style: { width: '' } },
             render: (value, record, openModal) => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const IconComponent = record.icon ? (LucideIcons as any)[record.icon] as React.ComponentType<{ className?: string }> : null;
@@ -138,48 +116,12 @@ export function ModulesPage() {
               </Badge>
             ),
           },
-
-          // {
-          //   key: 'owner_level',
-          //   label: 'Proprietário',
-          //   sortable: true,
-          //   meta: { style: { width: '12%' } },
-          //   render: (value) => {
-          //     const map: Record<string, { label: string; variant: 'primary' | 'secondary' | 'outline' }> = {
-          //       master:   { label: 'Master',     variant: 'primary' },
-          //       platform: { label: 'Plataforma', variant: 'secondary' },
-          //       tenant:   { label: 'Tenant',     variant: 'outline' },
-          //     };
-          //     const opt = map[String(value)] ?? { label: String(value ?? '—'), variant: 'outline' as const };
-          //     return <Badge variant={opt.variant}>{opt.label}</Badge>;
-          //   },
-          // },
-          // {
-          //   key: 'type',
-          //   label: 'Tipo',
-          //   sortable: true,
-          //   meta: { style: { width: '10%' } },
-          //   render: (value) => {
-          //     const map: Record<string, { label: string; variant: 'primary' | 'secondary' | 'warning' }> = {
-          //       module:    { label: 'Módulo',    variant: 'primary' },
-          //       submodule: { label: 'Submódulo', variant: 'secondary' },
-          //       pivot:     { label: 'Pivot',     variant: 'warning' },
-          //     };
-          //     const opt = map[String(value)] ?? { label: String(value ?? '—'), variant: 'secondary' as const };
-          //     return <Badge variant={opt.variant}>{opt.label}</Badge>;
-          //   },
-          // },
         ]}
         modalComponent={ModuleModal}
         groupBy="computed"
-        groupByCompute={(record) => `${record.owner_level}|${record.type}`}
-        groupByLevel1Labels={{ master: 'MASTER', platform: 'PLATFORM', tenant: 'TENANT' }}
+        groupByCompute={(record) => String(record.type ?? 'module')}
         groupByLabels={{ module: 'Módulo', submodule: 'Submódulo', pivot: 'Pivot' }}
-        groupByOrder={[
-          'master|module', 'master|submodule', 'master|pivot',
-          'platform|module', 'platform|submodule', 'platform|pivot',
-          'tenant|module', 'tenant|submodule', 'tenant|pivot',
-        ]}
+        groupByOrder={['module', 'submodule', 'pivot']}
         onReorder={refreshModules}
         renderSearchFilters={renderSearchFilters}
         onClearSearchFilters={handleClearSearchFilters}

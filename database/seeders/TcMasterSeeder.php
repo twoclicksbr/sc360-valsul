@@ -40,62 +40,67 @@ class TcMasterSeeder extends Seeder
         Module::on('tc_master')->firstOrCreate(
             ['slug' => 'modules'],
             [
-                'name'        => 'Módulos',
-                'icon'        => 'Box',
-                'type'        => 'module',
-                'model'       => 'Module',
-                'request'     => 'ModuleRequest',
-                'controller'  => 'System\ModuleController',
-                'owner_level' => 'master',
-                'owner_id'    => 0,
-                'order'       => 1,
-                'active'      => true,
+                'name'       => 'Módulos',
+                'icon'       => 'Box',
+                'type'       => 'module',
+                'is_custom'  => true,
+                'model'      => 'Module',
+                'request'    => 'ModuleRequest',
+                'controller' => 'System\ModuleController',
+                'observer'   => 'ModuleObserver',
+                'service'    => 'GenericService',
+                'order'      => 1,
+                'active'     => true,
             ]
         );
 
         Module::on('tc_master')->firstOrCreate(
             ['slug' => 'module-fields'],
             [
-                'name'        => 'Campos do Módulo',
-                'type'        => 'submodule',
-                'model'       => 'ModuleField',
-                'request'     => 'ModuleFieldRequest',
-                'owner_level' => 'master',
-                'owner_id'    => 0,
-                'order'       => 2,
-                'active'      => true,
+                'name'       => 'Campos do Módulo',
+                'type'       => 'submodule',
+                'is_custom'  => true,
+                'model'      => 'ModuleField',
+                'request'    => 'ModuleFieldRequest',
+                'controller' => 'GenericController',
+                'observer'   => 'GenericObserver',
+                'service'    => 'GenericService',
+                'order'      => 2,
+                'active'     => true,
             ]
         );
 
         Module::on('tc_master')->firstOrCreate(
             ['slug' => 'platforms'],
             [
-                'name'        => 'Plataformas',
-                'icon'        => 'Layers',
-                'type'        => 'module',
-                'model'       => 'Platform',
-                'request'     => 'PlatformRequest',
-                'controller'  => 'System\PlatformController',
-                'owner_level' => 'master',
-                'owner_id'    => 0,
-                'order'       => 3,
-                'active'      => true,
+                'name'       => 'Plataformas',
+                'icon'       => 'Layers',
+                'type'       => 'module',
+                'is_custom'  => true,
+                'model'      => 'Platform',
+                'request'    => 'PlatformRequest',
+                'controller' => 'System\PlatformController',
+                'observer'   => 'PlatformObserver',
+                'service'    => 'PlatformDatabaseService',
+                'order'      => 3,
+                'active'     => true,
             ]
         );
 
         Module::on('tc_master')->firstOrCreate(
             ['slug' => 'tenants'],
             [
-                'name'        => 'Tenants',
-                'icon'        => 'Building2',
-                'type'        => 'module',
-                'model'       => 'Tenant',
-                'request'     => 'TenantRequest',
-                'controller'  => 'System\TenantController',
-                'owner_level' => 'master',
-                'owner_id'    => 0,
-                'order'       => 4,
-                'active'      => true,
+                'name'       => 'Tenants',
+                'icon'       => 'Building2',
+                'type'       => 'module',
+                'is_custom'  => true,
+                'model'      => 'Tenant',
+                'request'    => 'TenantRequest',
+                'controller' => 'System\TenantController',
+                'observer'   => 'TenantObserver',
+                'service'    => 'TenantDatabaseService',
+                'order'      => 4,
+                'active'     => true,
             ]
         );
     }

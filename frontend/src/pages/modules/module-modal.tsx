@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { GenericModal } from '@/components/generic-modal';
 import { apiGet } from '@/lib/api';
 import { useModules } from '@/providers/modules-provider';
@@ -12,32 +13,17 @@ export const ModuleInlineCtx = createContext<((record: ModuleForEdit) => void) |
 
 export interface ModuleForEdit {
   id: number;
-  owner_level: 'master' | 'platform' | 'tenant';
-  owner_id: number;
   slug: string;
   url_prefix: string | null;
   name: string;
   icon: string | null;
   type: 'module' | 'submodule' | 'pivot';
-  model: string | null;
-  request: string | null;
-  controller: string | null;
-  size_modal: 'p' | 'm' | 'g' | null;
-  description_index: string | null;
-  description_show: string | null;
-  description_store: string | null;
-  description_update: string | null;
-  description_delete: string | null;
-  description_restore: string | null;
-  after_store: 'index' | 'show' | 'create' | 'edit' | null;
-  after_update: 'index' | 'show' | 'create' | 'edit' | null;
-  after_restore: 'index' | 'show' | 'create' | 'edit' | null;
-  screen_index: string | null;
-  screen_show: string | null;
-  screen_create: string | null;
-  screen_edit: string | null;
-  screen_delete: string | null;
-  screen_restore: string | null;
+  is_custom: boolean;
+  model: string;
+  request: string;
+  controller: string;
+  observer: string;
+  service: string;
   order: number;
   active: boolean;
   created_at: string;
@@ -85,14 +71,19 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
   }
   const [renderMode, setRenderMode] = useState<RenderMode>(toRenderMode(mode));
 
-  const [name, setName]               = useState('');
-  const [slug, setSlug]               = useState('');
-  const [slugManual, setSlugManual]   = useState(false);
-  const [slugStatus, setSlugStatus]   = useState<SlugStatus>('idle');
-  const [type, setType]               = useState<string>('module');
-  const [ownerLevel, setOwnerLevel]   = useState<string>('master');
-  const [icon, setIcon]               = useState('');
-  const [errors, setErrors]           = useState<FieldErrors>({});
+  const [name, setName]             = useState('');
+  const [slug, setSlug]             = useState('');
+  const [slugManual, setSlugManual] = useState(false);
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
+  const [type, setType]             = useState<string>('module');
+  const [isCustom, setIsCustom]     = useState(false);
+  const [model, setModel]           = useState('');
+  const [request, setRequest]       = useState('');
+  const [controller, setController] = useState('');
+  const [observer, setObserver]     = useState('');
+  const [service, setService]       = useState('');
+  const [icon, setIcon]             = useState('');
+  const [errors, setErrors]         = useState<FieldErrors>({});
 
   // Se há contexto inline disponível e o modo é show/edit, delega para a página
   useEffect(() => {
@@ -111,14 +102,24 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
         setSlug(record.slug);
         setSlugManual(true);
         setType(record.type);
-        setOwnerLevel(record.owner_level);
+        setIsCustom(record.is_custom ?? false);
+        setModel(record.model ?? '');
+        setRequest(record.request ?? '');
+        setController(record.controller ?? '');
+        setObserver(record.observer ?? '');
+        setService(record.service ?? '');
         setIcon(record.icon ?? '');
       } else {
         setName('');
         setSlug('');
         setSlugManual(false);
         setType('module');
-        setOwnerLevel('master');
+        setIsCustom(false);
+        setModel('');
+        setRequest('');
+        setController('');
+        setObserver('');
+        setService('');
         setIcon('');
       }
       setErrors({});
@@ -178,9 +179,13 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
       name,
       slug,
       type,
-      owner_level: ownerLevel,
-      owner_id: record?.owner_id ?? 0,
+      is_custom: isCustom,
       icon: icon || null,
+      model:      isCustom ? model      : 'GenericModel',
+      request:    isCustom ? request    : 'GenericRequest',
+      controller: isCustom ? controller : 'GenericController',
+      observer:   isCustom ? observer   : 'GenericObserver',
+      service:    isCustom ? service    : 'GenericService',
     };
   }
 
@@ -283,23 +288,79 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
             )}
           </div>
 
-          {/* Proprietário */}
+          {/* Customizado */}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="module-owner-level">Proprietário</Label>
-            <Select value={ownerLevel} onValueChange={setOwnerLevel}>
-              <SelectTrigger id="module-owner-level">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="master">Master</SelectItem>
-                <SelectItem value="platform">Plataforma</SelectItem>
-                <SelectItem value="tenant">Tenant</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.owner_level && (
-              <p className="text-sm text-destructive">{errors.owner_level[0]}</p>
-            )}
+            <Label>Customizado</Label>
+            <div className="flex items-center gap-2 h-8.5">
+              <Switch
+                id="module-is-custom"
+                checked={isCustom}
+                onCheckedChange={setIsCustom}
+                size="sm"
+              />
+              <span className="text-sm text-muted-foreground">{isCustom ? 'Sim' : 'Não'}</span>
+            </div>
           </div>
+
+          {/* Campos de classe — visíveis apenas quando is_custom=true */}
+          {isCustom && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="module-model">Model</Label>
+                <Input
+                  id="module-model"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="GenericModel"
+                />
+                {errors.model && <p className="text-sm text-destructive">{errors.model[0]}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="module-request">Request</Label>
+                <Input
+                  id="module-request"
+                  value={request}
+                  onChange={(e) => setRequest(e.target.value)}
+                  placeholder="GenericRequest"
+                />
+                {errors.request && <p className="text-sm text-destructive">{errors.request[0]}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="module-controller">Controller</Label>
+                <Input
+                  id="module-controller"
+                  value={controller}
+                  onChange={(e) => setController(e.target.value)}
+                  placeholder="GenericController"
+                />
+                {errors.controller && <p className="text-sm text-destructive">{errors.controller[0]}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="module-observer">Observer</Label>
+                <Input
+                  id="module-observer"
+                  value={observer}
+                  onChange={(e) => setObserver(e.target.value)}
+                  placeholder="GenericObserver"
+                />
+                {errors.observer && <p className="text-sm text-destructive">{errors.observer[0]}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="module-service">Service</Label>
+                <Input
+                  id="module-service"
+                  value={service}
+                  onChange={(e) => setService(e.target.value)}
+                  placeholder="GenericService"
+                />
+                {errors.service && <p className="text-sm text-destructive">{errors.service[0]}</p>}
+              </div>
+            </>
+          )}
 
         </GenericModal>
       )}
