@@ -3,7 +3,18 @@ import { ArrowLeft } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { IconPickerModal } from '@/components/icon-picker-modal';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, ButtonArrow } from '@/components/ui/button';
+import {
+  Command,
+  CommandCheck,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogBody,
@@ -80,6 +91,8 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
   const [controller, setController] = useState('');
   const [observer, setObserver]     = useState('');
   const [service, setService]       = useState('');
+  const [page, setPage]             = useState<string | null>(null);
+  const [openCombo, setOpenCombo]   = useState<string | null>(null);
   const [active, setActive]         = useState(true);
   const [saving, setSaving]         = useState(false);
   const [errors, setErrors]         = useState<FieldErrors>({});
@@ -92,6 +105,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
     controllers: Record<string, string[]>;
     observers: string[];
     services: string[];
+    pages: Record<string, string[]>;
   } | null>(null);
 
   useEffect(() => {
@@ -108,6 +122,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
       setController(record.controller ?? '');
       setObserver(record.observer ?? '');
       setService(record.service ?? '');
+      setPage(record.page ?? null);
       setActive(record.active ?? true);
       setErrors({});
       setSlugStatus('idle');
@@ -125,7 +140,8 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
       controllers: Record<string, string[]>;
       observers: string[];
       services: string[];
-    }>(`/v1/modules/scan-files`)
+      pages: Record<string, string[]>;
+    }>(`/v1/modules/scan-files?slug=${encodeURIComponent(slug)}`)
       .then(setScanFiles)
       .catch(() => {});
   }, [open, inline, isCustom]);
@@ -198,6 +214,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
         controller: isCustom ? controller : 'GenericController',
         observer:   isCustom ? observer   : 'GenericObserver',
         service:    isCustom ? service    : 'GenericService',
+        page:       isCustom ? (page || null) : null,
         active,
       });
       onSuccess();
@@ -346,69 +363,222 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
             <div className="bg-background rounded-md m-1 mt-0 border border-input py-3 px-3.5">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '1rem' }}>
 
+                {/* Model */}
                 <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-show-model">Model</Label>
-                  <Select value={model || '__none__'} onValueChange={v => setModel(v === '__none__' ? '' : v)}>
-                    <SelectTrigger id="mod-show-model"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
-                      {(scanFiles?.models ?? []).map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label>Model</Label>
+                  <Popover open={openCombo === 'model'} onOpenChange={(o) => setOpenCombo(o ? 'model' : null)}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" mode="input" aria-expanded={openCombo === 'model'} className="w-full">
+                        {model || <span className="text-muted-foreground">— selecione —</span>}
+                        <ButtonArrow />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar..." />
+                        <CommandList>
+                          <ScrollArea viewportClassName="max-h-[200px] [&>div]:block!">
+                            <CommandEmpty>Nenhum resultado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem value="__clear__" onSelect={() => { setModel(''); setOpenCombo(null); }}>
+                                <span className="text-muted-foreground">— nenhum —</span>
+                              </CommandItem>
+                              {(scanFiles?.models ?? []).map(m => (
+                                <CommandItem key={m} value={m} onSelect={() => { setModel(m); setOpenCombo(null); }}>
+                                  {m}{model === m && <CommandCheck />}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </ScrollArea>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {errors.model && <p className="text-sm text-destructive">{errors.model[0]}</p>}
                 </div>
 
+                {/* Request */}
                 <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-show-request">Request</Label>
-                  <Select value={request || '__none__'} onValueChange={v => setRequest(v === '__none__' ? '' : v)}>
-                    <SelectTrigger id="mod-show-request"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
-                      {(scanFiles?.requests ?? []).map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label>Request</Label>
+                  <Popover open={openCombo === 'request'} onOpenChange={(o) => setOpenCombo(o ? 'request' : null)}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" mode="input" aria-expanded={openCombo === 'request'} className="w-full">
+                        {request || <span className="text-muted-foreground">— selecione —</span>}
+                        <ButtonArrow />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar..." />
+                        <CommandList>
+                          <ScrollArea viewportClassName="max-h-[200px] [&>div]:block!">
+                            <CommandEmpty>Nenhum resultado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem value="__clear__" onSelect={() => { setRequest(''); setOpenCombo(null); }}>
+                                <span className="text-muted-foreground">— nenhum —</span>
+                              </CommandItem>
+                              {(scanFiles?.requests ?? []).map(r => (
+                                <CommandItem key={r} value={r} onSelect={() => { setRequest(r); setOpenCombo(null); }}>
+                                  {r}{request === r && <CommandCheck />}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </ScrollArea>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {errors.request && <p className="text-sm text-destructive">{errors.request[0]}</p>}
                 </div>
 
+                {/* Controller */}
                 <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-show-controller">Controller</Label>
-                  <Select value={controller || '__none__'} onValueChange={v => setController(v === '__none__' ? '' : v)}>
-                    <SelectTrigger id="mod-show-controller"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
-                      {Object.entries(scanFiles?.controllers ?? {}).map(([group, items]) =>
-                        items.map(c => {
-                          const val = group === 'Raiz' ? c : `${group}\\${c}`;
-                          return <SelectItem key={val} value={val}>{val}</SelectItem>;
-                        })
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Label>Controller</Label>
+                  <Popover open={openCombo === 'controller'} onOpenChange={(o) => setOpenCombo(o ? 'controller' : null)}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" mode="input" aria-expanded={openCombo === 'controller'} className="w-full">
+                        {controller || <span className="text-muted-foreground">— selecione —</span>}
+                        <ButtonArrow />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar..." />
+                        <CommandList>
+                          <ScrollArea viewportClassName="max-h-[200px] [&>div]:block!">
+                            <CommandEmpty>Nenhum resultado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem value="__clear__" onSelect={() => { setController(''); setOpenCombo(null); }}>
+                                <span className="text-muted-foreground">— nenhum —</span>
+                              </CommandItem>
+                            </CommandGroup>
+                            {Object.entries(scanFiles?.controllers ?? {}).map(([group, items]) => (
+                              <CommandGroup key={group} heading={group}>
+                                {items.map(c => {
+                                  const val = group === 'Raiz' ? c : `${group}\\${c}`;
+                                  return (
+                                    <CommandItem key={val} value={val} onSelect={() => { setController(val); setOpenCombo(null); }}>
+                                      {val}{controller === val && <CommandCheck />}
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            ))}
+                          </ScrollArea>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {errors.controller && <p className="text-sm text-destructive">{errors.controller[0]}</p>}
                 </div>
 
+                {/* Observer */}
                 <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-show-observer">Observer</Label>
-                  <Select value={observer || '__none__'} onValueChange={v => setObserver(v === '__none__' ? '' : v)}>
-                    <SelectTrigger id="mod-show-observer"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
-                      {(scanFiles?.observers ?? []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label>Observer</Label>
+                  <Popover open={openCombo === 'observer'} onOpenChange={(o) => setOpenCombo(o ? 'observer' : null)}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" mode="input" aria-expanded={openCombo === 'observer'} className="w-full">
+                        {observer || <span className="text-muted-foreground">— selecione —</span>}
+                        <ButtonArrow />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar..." />
+                        <CommandList>
+                          <ScrollArea viewportClassName="max-h-[200px] [&>div]:block!">
+                            <CommandEmpty>Nenhum resultado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem value="__clear__" onSelect={() => { setObserver(''); setOpenCombo(null); }}>
+                                <span className="text-muted-foreground">— nenhum —</span>
+                              </CommandItem>
+                              {(scanFiles?.observers ?? []).map(o => (
+                                <CommandItem key={o} value={o} onSelect={() => { setObserver(o); setOpenCombo(null); }}>
+                                  {o}{observer === o && <CommandCheck />}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </ScrollArea>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {errors.observer && <p className="text-sm text-destructive">{errors.observer[0]}</p>}
                 </div>
 
+                {/* Service */}
                 <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
-                  <Label htmlFor="mod-show-service">Service</Label>
-                  <Select value={service || '__none__'} onValueChange={v => setService(v === '__none__' ? '' : v)}>
-                    <SelectTrigger id="mod-show-service"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__" className="text-muted-foreground">— selecione —</SelectItem>
-                      {(scanFiles?.services ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label>Service</Label>
+                  <Popover open={openCombo === 'service'} onOpenChange={(o) => setOpenCombo(o ? 'service' : null)}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" mode="input" aria-expanded={openCombo === 'service'} className="w-full">
+                        {service || <span className="text-muted-foreground">— selecione —</span>}
+                        <ButtonArrow />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar..." />
+                        <CommandList>
+                          <ScrollArea viewportClassName="max-h-[200px] [&>div]:block!">
+                            <CommandEmpty>Nenhum resultado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem value="__clear__" onSelect={() => { setService(''); setOpenCombo(null); }}>
+                                <span className="text-muted-foreground">— nenhum —</span>
+                              </CommandItem>
+                              {(scanFiles?.services ?? []).map(s => (
+                                <CommandItem key={s} value={s} onSelect={() => { setService(s); setOpenCombo(null); }}>
+                                  {s}{service === s && <CommandCheck />}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </ScrollArea>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {errors.service && <p className="text-sm text-destructive">{errors.service[0]}</p>}
+                </div>
+
+                {/* Page */}
+                <div style={{ gridColumn: 'span 2' }} className="flex flex-col gap-1.5">
+                  <Label>Page</Label>
+                  <Popover open={openCombo === 'page'} onOpenChange={(o) => setOpenCombo(o ? 'page' : null)}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" mode="input" aria-expanded={openCombo === 'page'} className="w-full">
+                        {page ? (page.split('/').pop() ?? page) : <span className="text-muted-foreground">— selecione —</span>}
+                        <ButtonArrow />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar..." />
+                        <CommandList>
+                          <ScrollArea viewportClassName="max-h-[200px] [&>div]:block!">
+                            <CommandEmpty>Nenhum resultado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem value="__clear__" onSelect={() => { setPage(null); setOpenCombo(null); }}>
+                                <span className="text-muted-foreground">— nenhum —</span>
+                              </CommandItem>
+                            </CommandGroup>
+                            {Object.entries(scanFiles?.pages ?? {}).map(([group, items]) => (
+                              <CommandGroup key={group} heading={group}>
+                                {items.map(p => {
+                                  const filename = p.split('/').pop() ?? p;
+                                  return (
+                                    <CommandItem key={p} value={p} onSelect={() => { setPage(p); setOpenCombo(null); }}>
+                                      {filename}{page === p && <CommandCheck />}
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            ))}
+                          </ScrollArea>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {errors.page && <p className="text-sm text-destructive">{errors.page[0]}</p>}
                 </div>
 
               </div>
@@ -562,7 +732,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
             <ModuleFieldsTab moduleId={record.id} mode="edit" active={activeTab === 'campos'} />
           </TabsContent>
           <TabsContent value="layout" className="p-0 flex flex-1 overflow-hidden">
-            <ModuleLayoutTab moduleId={record.id} />
+            <ModuleLayoutTab moduleId={record.id} moduleName={record.name} moduleActive={record.active ?? true} createdAt={record.created_at} updatedAt={record.updated_at} />
           </TabsContent>
           <TabsContent value="grid" className="p-4">
             <p className="text-sm text-muted-foreground">Em desenvolvimento</p>
@@ -654,7 +824,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
                   <ModuleFieldsTab moduleId={record.id} mode="edit" active={activeTab === 'campos'} />
                 </TabsContent>
                 <TabsContent value="layout" className="flex-1 flex overflow-hidden p-0">
-                  <ModuleLayoutTab moduleId={record.id} />
+                  <ModuleLayoutTab moduleId={record.id} moduleName={record.name} moduleActive={record.active ?? true} createdAt={record.created_at} updatedAt={record.updated_at} />
                 </TabsContent>
                 <TabsContent value="grid" className="flex-1 overflow-y-auto p-6">
                   <p className="text-sm text-muted-foreground">Em desenvolvimento</p>

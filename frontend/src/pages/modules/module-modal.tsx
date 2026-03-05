@@ -24,6 +24,7 @@ export interface ModuleForEdit {
   controller: string;
   observer: string;
   service: string;
+  page: string | null;
   order: number;
   active: boolean;
   created_at: string;

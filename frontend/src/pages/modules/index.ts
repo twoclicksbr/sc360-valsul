@@ -1,1 +1,1 @@
-export { ModulesPage } from './modules-page';
+export { ModulesPage } from './page';

@@ -34,6 +34,7 @@ class ModuleRequest extends FormRequest
             'controller' => ['required', 'string', 'max:255'],
             'observer'   => ['required', 'string', 'max:255'],
             'service'    => ['required', 'string', 'max:255'],
+            'page'       => ['nullable', 'string', 'max:255'],
             'order'      => ['nullable', 'integer', 'min:1'],
             'active'     => ['nullable', 'boolean'],
         ];

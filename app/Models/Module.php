@@ -21,6 +21,7 @@ class Module extends Model
         'controller',
         'observer',
         'service',
+        'page',
         'order',
         'active',
     ];

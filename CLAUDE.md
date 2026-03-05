@@ -161,13 +161,14 @@ id → campos específicos → order (default 1) → active (default true) → t
 
 | Tabela | Campos |
 |--------|--------|
-| `modules` | slug (unique), url_prefix (nullable), name, icon (nullable), type (enum: module/submodule/pivot, default module), is_custom (bool, default false), model (default GenericModel), request (default GenericRequest), controller (default GenericController), observer (default GenericObserver), service (default GenericService), order, active |
+| `modules` | slug (unique), url_prefix (nullable), name, icon (nullable), type (enum: module/submodule/pivot, default module), is_custom (bool, default false), model (default GenericModel), request (default GenericRequest), controller (default GenericController), observer (default GenericObserver), service (default GenericService), page (nullable), order, active |
 | `module_fields` | module_id (FK modules, cascade), name, type (string, default string), length (string, nullable), nullable (bool), default (nullable), unique (bool), index (bool), fk_table (nullable), fk_column (nullable), is_system (bool, default false), order, active |
 
 - `slug` = identificador único usado na URL
 - `url_prefix` = prefixo opcional de URL antes do slug
 - `icon` = nome do ícone Lucide (ex: `Users`, `Package`) — renderizado dinamicamente
 - `is_custom` = true quando o módulo usa classes PHP específicas (Model/Request/Controller/Observer/Service customizados); false usa GenericModel/GenericRequest etc.
+- `page` = caminho relativo ao componente React da página (ex: `pages/modules/page.tsx`); nullable; definido quando `is_custom=true`
 - `controller` = controller específica no formato `System\\TenantController`; default `GenericController`
 - `type` = `module`, `submodule` ou `pivot`
 - `is_system` = true para campos criados pelo Observer (id, order, active, created_at, updated_at, deleted_at) — read-only na UI, não arrastáveis
@@ -241,7 +242,7 @@ Fluxo: cadastra módulo → define campos (module_fields) → monta tela no page
 
 ## is_custom vs Generic
 
-Módulos com `is_custom=false` usam classes genéricas (`GenericModel`, `GenericRequest`, `GenericController`, `GenericObserver`, `GenericService`). Módulos com `is_custom=true` definem classes PHP específicas. O campo `is_custom` é um switch na UI — quando false, os campos de classe ficam ocultos e o payload envia os valores Generic* automaticamente.
+Módulos com `is_custom=false` usam classes genéricas (`GenericModel`, `GenericRequest`, `GenericController`, `GenericObserver`, `GenericService`). Módulos com `is_custom=true` definem classes PHP específicas e podem ter um componente React específico (`page`). O campo `is_custom` é um switch na UI — quando false, os campos de classe ficam ocultos e o payload envia os valores Generic* automaticamente; `page` fica `null`.
 
 ---
 
@@ -320,7 +321,7 @@ Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `
 | GET | `/v1/{module}` | `index` | Lista paginada com sort, per_page e filtros |
 | POST | `/v1/{module}` | `store` | Cria registro (usa Request dinâmica) |
 | GET | `/v1/{module}/check-slug` | `checkSlug` | Verifica disponibilidade de slug |
-| GET | `/v1/{module}/scan-files` | `scanFiles` | Retorna Models, Requests, Controllers, Observers e Services disponíveis |
+| GET | `/v1/{module}/scan-files` | `scanFiles` | Retorna Models, Requests, Controllers, Observers, Services e Pages disponíveis. Aceita `?slug=` para escanear pages do módulo. |
 | GET | `/v1/{module}/{id}` | `show` | Exibe registro (inclui soft-deleted) |
 | PUT/PATCH | `/v1/{module}/{id}` | `update` | Atualiza registro |
 | DELETE | `/v1/{module}/{id}` | `destroy` | Soft delete + seta active=false |
@@ -383,7 +384,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `Platform` | `tc_master` (explícita) | hidden passwords; casts encrypted + `'order' => 'integer'`; campos `domain`, `domain_local`; `tenants()` hasMany |
 | `User` | default (dinâmica) | Sanctum HasApiTokens |
 | `Person` | default (dinâmica) | cast `birth_date` como `'date:Y-m-d'` |
-| `Module` | default (dinâmica) | fillable: slug, url_prefix, name, icon, type, is_custom, model, request, controller, observer, service, order, active; casts: is_custom/order/active |
+| `Module` | default (dinâmica) | fillable: slug, url_prefix, name, icon, type, is_custom, model, request, controller, observer, service, page, order, active; casts: is_custom/order/active |
 | `ModuleField` | default (dinâmica) | `module()` belongsTo; fillable: module_id, name, type, length, nullable, default, unique, index, fk_table, fk_column, is_system, order, active; casts: nullable/unique/index/is_system bool, order int |
 | `PersonalAccessToken` | via `getConnectionName()` | Retorna `DB::getDefaultConnection()` |
 
@@ -403,6 +404,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `2025_02_24_000007` | personal_access_tokens |
 | `2025_02_24_000008` | modules |
 | `2026_02_27_000001` | module_fields (FK modules, cascadeOnDelete) |
+| `2026_03_04_000001` | coluna `page` (nullable string) em modules |
 
 **`database/migrations/tenant/`** — roda via provision (apenas sand + log)
 
@@ -413,6 +415,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `2025_02_24_000003` | users (com person_id FK) |
 | `2026_02_24_213424` | personal_access_tokens |
 | `2026_02_27_000001` | module_fields (FK modules, cascadeOnDelete) |
+| `2026_03_04_000001` | coluna `page` (nullable string) em modules |
 
 **`database/migrations/log/`**
 
@@ -459,7 +462,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `TenantRequest` | platform_id (required, exists:tc_master.platforms), slug (unique:tc_master.tenants), demais credenciais pelo Observer |
 | `PersonRequest` | name (required), birth_date (nullable) |
 | `UserRequest` | person_id (required, FK), email (unique), password (required no create, nullable no update) |
-| `ModuleRequest` | slug (required, unique), url_prefix (nullable), name (required), icon (nullable), type (required: module/submodule/pivot), is_custom (nullable bool), model (required), request (required), controller (required), observer (required), service (required), order (nullable int), active (nullable bool) |
+| `ModuleRequest` | slug (required, unique), url_prefix (nullable), name (required), icon (nullable), type (required: module/submodule/pivot), is_custom (nullable bool), model (required), request (required), controller (required), observer (required), service (required), page (nullable string max:255), order (nullable int), active (nullable bool) |
 | `ModuleFieldRequest` | module_id (required, exists:modules), name (required), type (required: string/text/integer/bigint/boolean/date/datetime/decimal/enum), length (nullable string max:50), nullable (nullable bool), default (nullable string), unique (nullable bool), index (nullable bool), fk_table (nullable, required_if:type,bigint), fk_column (nullable, required_if:type,bigint), is_system (nullable bool), order (nullable int), active (nullable bool) |
 
 **Módulos de sistema** (modules, platforms, tenants, users) mantêm Model + Request + Observer hardcoded. **Módulos criados pela UI** usam validação dinâmica baseada em module_fields.
@@ -635,14 +638,17 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 **ModuleShowModal — aba Dados:**
 - Header: botão "← Voltar" + `#ID` + Nome + badge Ativo/Inativo + badge Tipo (sem badge owner_level)
 - Campos: Ícone, Nome, Tipo, Slug, URL Prefix, Customizado (switch `is_custom`)
-- Quando `is_custom=true`: exibe selects de Model, Request, Controller, Observer, Service (populados via `scanFiles`)
-- `scanFiles` disparado apenas quando `isCustom=true`
+- Quando `is_custom=true`: exibe comboboxes (Popover + Command + CommandInput) para Model, Request, Controller, Observer, Service e Page — todos com busca, populados via `scanFiles?slug=...`
+  - Controllers agrupados por pasta (heading por grupo)
+  - Pages agrupadas por slug do módulo; exibe apenas o filename; valor salvo é o caminho relativo (ex: `pages/modules/page.tsx`)
+- `scanFiles` disparado com `?slug={slug}` quando `isCustom=true` para incluir pages do módulo
+- `openCombo` state: controla qual combobox está aberto (string com nome do campo ou null)
 - Card "Configuração", "Ações de Comportamento" e "Descrições" removidos
 - Card "Submódulos": grid 4 colunas (era 3); visível apenas quando type=module
 
 **`ModuleShowModalProps`:** props `moduleId`, `parentName`, `parentIcon` removidas
 
-**`ModuleForEdit` interface:** removidos owner_level, owner_id, size_modal, description_*, after_*, screen_*; adicionados is_custom (bool), observer (string), service (string); model/request/controller agora string (não nullable)
+**`ModuleForEdit` interface:** removidos owner_level, owner_id, size_modal, description_*, after_*, screen_*; adicionados is_custom (bool), observer (string), service (string), page (string | null); model/request/controller agora string (não nullable)
 
 **`ModuleModal` (create/edit rápido):**
 - Removido select "Proprietário"; adicionado Switch "Customizado" (`is_custom`)
@@ -672,14 +678,21 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 - `TableStatus` interface: `{ table_exists, table_name, changes: TableStatusChange[], has_pending_changes, dangerous_changes: DangerousChange[] }`
 
 **`ModuleLayoutTab` (aba Layout) — `pages/modules/components/module-layout-tab.tsx`:**
-- Prop: `moduleId: number` (para uso futuro na API)
-- Sidebar esquerda colapsável (w-56 / w-10): catálogo de componentes ou painel de propriedades do selecionado
-- Catálogo: 10 componentes com ícones Lucide — Grid (LayoutGrid), Form (FormInput), Card (Square), Texto (Type), Botões (MousePointer), Container (Box), Abas (Layers), Gráfico (BarChart2), Imagem (Image), Divisor (Minus)
+- Props: `moduleId`, `moduleName`, `moduleActive`, `createdAt?`, `updatedAt?`
+- Sidebar esquerda colapsável (w-56 / w-10): header "Page Builder" com tooltip collapse/expand; catálogo de componentes ou painel de propriedades do selecionado
+- Catálogo: 10 componentes com ícones Lucide — Grid, Form, Card, Texto, Botões, Container, Abas, Gráfico, Imagem, Divisor
 - Painel de propriedades: selects, inputs, número e toggles por tipo de componente
-- Page tabs: 9 subabas — Index, Show, Create, Edit, Delete, Restore, Print, Dashboard, Pública
-- Stage: área com fundo xadrez; clique em componente adiciona ao stage; item selecionado recebe ring azul
-- Ações da toolbar: **Preview** | **Fullscreen** (Maximize2/Minimize2 — toggle `fixed inset-0 z-50 bg-white`) | **Salvar** (feedback "✓ Salvo" por 2s)
-- Sem header simulado — usa header/tabs do `ModuleShowModal`
+- **Toolbar do builder**: `<Tabs>/<TabsList>/<TabsTrigger>` com PAGE_TABS (`{value, label}[]`: index, show, create, edit, delete, restore, print, dashboard, publica) + botões Preview/Fullscreen/Salvar
+- **Fullscreen mode** (`fixed inset-x-0 bottom-0 z-50`): renderiza header com Voltar + `#ID` + nome + badge ativo/tipo + timestamps; `top: var(--banner-height, 0px)`
+- **Stage**: fundo xadrez (`px-6 pt-6`); simula o Demo3Layout real usando componentes reais:
+  - Técnica: `transform: translateZ(0)` no container cria containing block para `position: fixed`
+  - CSS vars no container: `--header-height: 48px`, `--sidebar-width: 58px`, `--navbar-height: 56px`, `--banner-height: 0px`
+  - Cada componente fixed tem wrapper individual com `transform: translateZ(0)` + `overflow: hidden` + dimensões explícitas
+  - **Header real** (`@/layouts/demo3/components/header`): wrapper `absolute inset-x-0 top-0 h-[48px] z-10`, pointer-events-none
+  - **Sidebar real** (`@/layouts/demo3/components/sidebar`): wrapper `absolute top-0 bottom-0 left-0 w-[58px] z-20`, pointer-events-none
+  - **Navbar real** (`@/layouts/demo3/components/navbar`): wrapper `absolute inset-0 z-5`, pointer-events-none — renderiza NavbarMenu (módulos dinâmicos) + NavbarLinks (date range)
+  - **Área de conteúdo**: `absolute top-[104px] left-[58px] right-0 bottom-0` — stage items ou empty state "Arraste componentes para montar a página"
+  - **Footer real** (`@/layouts/demo3/components/footer`): pointer-events-none, `[&_*]:text-[11px]!`
 
 #### PlatformsPage / TenantsPage — Grid + CRM modal
 
@@ -750,7 +763,7 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 
 **Localização:** Aba "Layout" no ModuleShowModal (inline + dialog). 9 subabas: Index, Show, Create, Edit, Delete, Restore, Print, Dashboard, Pública.
 
-**Implementado:** UI base do builder — sidebar colapsável com catálogo + properties panel, stage com xadrez, page tabs, toolbar (Preview/Fullscreen/Salvar). Arquivo: `frontend/src/pages/modules/components/module-layout-tab.tsx`.
+**Implementado:** UI base do builder — sidebar colapsável com catálogo + properties panel, toolbar com TabsList/Tabs (9 subabas), stage com xadrez simulando Demo3Layout real (Header + Sidebar + Navbar + Footer reais via transform trick), fullscreen mode com header do módulo. Arquivo: `frontend/src/pages/modules/components/module-layout-tab.tsx`.
 
 **Layout:** 3 colunas — Componentes (~15%) | Stage (~60%) | Painel (~25%)
 

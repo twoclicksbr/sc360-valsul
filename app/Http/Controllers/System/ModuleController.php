@@ -31,7 +31,7 @@ class ModuleController extends Controller
         return "App\\Http\\Requests\\{$module->request}";
     }
 
-    public function scanFiles(): JsonResponse
+    public function scanFiles(Request $request): JsonResponse
     {
         $models = collect(glob(app_path('Models') . '/*.php'))
             ->map(fn($f) => pathinfo($f, PATHINFO_FILENAME))
@@ -76,12 +76,27 @@ class ModuleController extends Controller
             ->sort()
             ->values();
 
+        // Pages: escaneia frontend/src/pages/{slug}/*.tsx (todos os .tsx da pasta do módulo)
+        $slug      = $request->input('slug', '');
+        $pages     = [];
+        if ($slug !== '') {
+            $subdir = base_path('frontend/src/pages/' . $slug);
+            if (is_dir($subdir)) {
+                foreach (glob($subdir . '/*.tsx') ?: [] as $file) {
+                    $filename      = pathinfo($file, PATHINFO_FILENAME);
+                    $pages[$slug][] = 'pages/' . $slug . '/' . $filename . '.tsx';
+                }
+                sort($pages[$slug]);
+            }
+        }
+
         return response()->json([
             'models'      => $models,
             'requests'    => $requests,
             'controllers' => (object) $controllers,
             'observers'   => $observers,
             'services'    => $services,
+            'pages'       => (object) $pages,
         ]);
     }
 
