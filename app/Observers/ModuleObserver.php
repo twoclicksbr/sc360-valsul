@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Module;
 use App\Models\ModuleField;
+use App\Models\ModulePage;
 
 class ModuleObserver
 {
@@ -34,6 +35,20 @@ class ModuleObserver
                 'is_system' => true,
                 'active'    => true,
                 'order'     => $field['order'],
+            ]);
+        }
+
+        $tabs = ['index', 'show', 'create', 'edit', 'delete', 'restore', 'print', 'dashboard', 'public'];
+
+        foreach ($tabs as $i => $tab) {
+            ModulePage::create([
+                'module_id'    => $module->id,
+                'tab'          => $tab,
+                'layout'       => null,
+                'is_published' => false,
+                'version'      => 1,
+                'order'        => $i + 1,
+                'active'       => true,
             ]);
         }
     }

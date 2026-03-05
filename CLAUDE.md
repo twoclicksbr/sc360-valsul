@@ -218,14 +218,14 @@ Tabelas com código PHP (Model, Request, Observer, Service, Controller):
 **Submodules de modules (por module_id):**
 - `module_fields` — colunas/campos do módulo ✅
 - `module_permissions` — permissões por pessoa + módulo + ação (não implementado)
-- `module_pages` — página montada por módulo, árvore JSON (não implementado)
+- `module_pages` — página montada por módulo, árvore JSON ✅ (backend + migrations; frontend em desenvolvimento)
 - `module_seeds` — dados iniciais + controle de execução (não implementado)
 
 ```
 modules
 ├── module_fields ✅
 ├── module_permissions (futuro)
-├── module_pages (futuro)
+├── module_pages ✅
 └── module_seeds (futuro)
 
 module_components (independente, futuro)
@@ -334,6 +334,9 @@ Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `
 - `GET /v1/modules/check-slug` → `System\ModuleController::checkSlug`
 - `GET /v1/modules/{id}/table-status` → `System\ModuleController::tableStatus`
 - `POST /v1/modules/{id}/generate-table` → `System\ModuleController::generateTable` (body: `{ confirm_dangerous: bool }`)
+- `GET /v1/modules/{id}/pages` → `System\ModuleController::getPages` — lista todas as module_pages do módulo
+- `GET /v1/modules/{id}/pages/{tab}` → `System\ModuleController::getPage` — busca page por tab; 404 se não encontrada
+- `POST /v1/modules/{id}/pages/{tab}` → `System\ModuleController::savePage` — upsert por module_id+tab; body: `{ layout, is_published? }`; se `is_published=true`, incrementa version
 
 **Filtros do index:**
 ```
@@ -351,7 +354,7 @@ Todas protegidas por `auth:sanctum`. `{module}` = `slug` do registro na tabela `
 | Pasta | Controllers |
 |-------|-------------|
 | `Auth/` | `AuthController` (login, logout, me) |
-| `System/` | `ModuleController` (CRUD genérico + scanFiles + checkSlug + tableStatus + generateTable), `TenantController` (credentials), `PlatformController` (credentials) |
+| `System/` | `ModuleController` (CRUD genérico + scanFiles + checkSlug + tableStatus + generateTable + getPages + getPage + savePage), `TenantController` (credentials), `PlatformController` (credentials) |
 
 ### Middleware Multi-Tenancy (`ResolveTenant.php`)
 
@@ -386,6 +389,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `Person` | default (dinâmica) | cast `birth_date` como `'date:Y-m-d'` |
 | `Module` | default (dinâmica) | fillable: slug, url_prefix, name, icon, type, is_custom, model, request, controller, observer, service, page, order, active; casts: is_custom/order/active |
 | `ModuleField` | default (dinâmica) | `module()` belongsTo; fillable: module_id, name, type, length, nullable, default, unique, index, fk_table, fk_column, is_system, order, active; casts: nullable/unique/index/is_system bool, order int |
+| `ModulePage` | default (dinâmica) | `module()` belongsTo; fillable: module_id, tab, layout, is_published, version, order, active; casts: layout→array, is_published/active→bool, version/order→int; SoftDeletes; unique(module_id, tab) |
 | `PersonalAccessToken` | via `getConnectionName()` | Retorna `DB::getDefaultConnection()` |
 
 ### Migrations
@@ -405,6 +409,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `2025_02_24_000008` | modules |
 | `2026_02_27_000001` | module_fields (FK modules, cascadeOnDelete) |
 | `2026_03_04_000001` | coluna `page` (nullable string) em modules |
+| `2026_03_05_000001` | module_pages (FK modules cascade, unique module_id+tab, layout json nullable, is_published bool, version int, order, active, softDeletes) |
 
 **`database/migrations/tenant/`** — roda via provision (apenas sand + log)
 
@@ -416,6 +421,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 | `2026_02_24_213424` | personal_access_tokens |
 | `2026_02_27_000001` | module_fields (FK modules, cascadeOnDelete) |
 | `2026_03_04_000001` | coluna `page` (nullable string) em modules |
+| `2026_03_05_000001` | module_pages (mesma estrutura do tc_master) |
 
 **`database/migrations/log/`**
 
@@ -432,7 +438,7 @@ Resolve a conexão do banco com base no hostname ou headers.
 
 | Observer | Gatilho | O que faz |
 |----------|---------|-----------|
-| `ModuleObserver` | `created` | Cria 6 campos padrão no module_fields com `is_system=true` (id, order, active, created_at, updated_at, deleted_at) |
+| `ModuleObserver` | `created` | Cria 6 campos padrão no module_fields com `is_system=true` (id, order, active, created_at, updated_at, deleted_at) + cria 9 ModulePage (tabs: index, show, create, edit, delete, restore, print, dashboard, public) com layout=null, is_published=false, version=1 |
 | `TenantObserver` | `creating` | Gera slug, db_name, sand/prod/log user+password, expiration_date |
 | `TenantObserver` | `created` | Chama `TenantDatabaseService::provision()` |
 | `PlatformObserver` | `creating` | Gera slug, db_name = `{slug}_master`, sand/prod/log user+password, expiration_date |
@@ -600,6 +606,7 @@ Consumidores:
 | `generic-grid.tsx` | Flat (FlatDndTable, DndSortableRow) | Plataformas, Tenants, Pessoas |
 | `generic-grid.tsx` | Grouped (GroupedDndSection, GroupedSortableRow) | Módulos (grid) |
 | `module-fields-tab.tsx` | Fields (FieldTableRow + SystemFieldRow com useSortableRow) | Módulos (aba Campos) |
+| `module-layout-tab.tsx` | Stage (DndContext + useDraggable para filhos de container) | Page Builder |
 
 Regras:
 - Todos `DndContext` usam `useDndSensors()` + `dndAccessibility`
@@ -680,19 +687,40 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 **`ModuleLayoutTab` (aba Layout) — `pages/modules/components/module-layout-tab.tsx`:**
 - Props: `moduleId`, `moduleName`, `moduleActive`, `createdAt?`, `updatedAt?`
 - Sidebar esquerda colapsável (w-56 / w-10): header "Page Builder" com tooltip collapse/expand; catálogo de componentes ou painel de propriedades do selecionado
-- Catálogo: 10 componentes com ícones Lucide — Grid, Form, Card, Texto, Botões, Container, Abas, Gráfico, Imagem, Divisor
-- Painel de propriedades: selects, inputs, número e toggles por tipo de componente
+- Catálogo: 10 componentes — Container, Texto, Grid, Form, Card, Botões, Abas, Gráfico, Imagem, Divisor
 - **Toolbar do builder**: `<Tabs>/<TabsList>/<TabsTrigger>` com PAGE_TABS (`{value, label}[]`: index, show, create, edit, delete, restore, print, dashboard, publica) + botões Preview/Fullscreen/Salvar
 - **Fullscreen mode** (`fixed inset-x-0 bottom-0 z-50`): renderiza header com Voltar + `#ID` + nome + badge ativo/tipo + timestamps; `top: var(--banner-height, 0px)`
 - **Stage**: fundo xadrez (`px-6 pt-6`); simula o Demo3Layout real usando componentes reais:
   - Técnica: `transform: translateZ(0)` no container cria containing block para `position: fixed`
   - CSS vars no container: `--header-height: 48px`, `--sidebar-width: 58px`, `--navbar-height: 56px`, `--banner-height: 0px`
-  - Cada componente fixed tem wrapper individual com `transform: translateZ(0)` + `overflow: hidden` + dimensões explícitas
   - **Header real** (`@/layouts/demo3/components/header`): wrapper `absolute inset-x-0 top-0 h-[48px] z-10`, pointer-events-none
   - **Sidebar real** (`@/layouts/demo3/components/sidebar`): wrapper `absolute top-0 bottom-0 left-0 w-[58px] z-20`, pointer-events-none
-  - **Navbar real** (`@/layouts/demo3/components/navbar`): wrapper `absolute inset-0 z-5`, pointer-events-none — renderiza NavbarMenu (módulos dinâmicos) + NavbarLinks (date range)
-  - **Área de conteúdo**: `absolute top-[104px] left-[58px] right-0 bottom-0` — stage items ou empty state "Arraste componentes para montar a página"
+  - **Navbar real** (`@/layouts/demo3/components/navbar`): wrapper `absolute inset-0 z-5`, pointer-events-none
+  - **Área de conteúdo**: `absolute top-[104px] left-[58px] right-0 bottom-0`
   - **Footer real** (`@/layouts/demo3/components/footer`): pointer-events-none, `[&_*]:text-[11px]!`
+
+**StageItemData:** `{ id, type, label, props?: Record<string,string>, children?, columns?: StageItemData[][] }`
+
+**Componente Container no stage:**
+- Renderiza grid de células com `DroppableCell` por coluna (useDroppable); aceita drop de componentes do catálogo
+- `CONTAINER_PROPS`: cols (1-12), width (full/fixed/compacto), padding, bg
+- `COLUMN_PROPS`: span (1-12), padding, alignH, alignV, bg — por coluna via `col_{idx}` key em props
+- Filhos dentro das células: `DraggableColChild` (useDraggable); exibição inline `flex flex-row flex-wrap gap-1`
+
+**Componente Texto no stage (`DraggableColChild`):**
+- Detecção de campo dinâmico: `/^\w+\.\w+$/.test(content)` → badge azul "⚡ {slug}.{campo}"
+- Texto livre: aplica `SIZE_MAP` (xs→text-xs...2xl→text-2xl) + `WEIGHT_MAP` (normal/medium/semibold/bold)
+
+**Painel de propriedades (GenericPropsBody):**
+- Todos os inputs controlados via `currentValues?.[prop.key]` + `onChange?.(key, value)`
+- Tipos suportados: `select`, `text`, `number`, `toggle`, `font-size`, `font-weight`, `field-binding`
+- `font-size`: ButtonGroup inline (div com border + overflow-hidden) — [AArrowDown] [valor] [AArrowUp]; stepper em `['xs','sm','base','lg','xl','2xl']`
+- `font-weight`: 4 botões toggle — Type(normal) | M(medium) | SB(semibold) | Bold(bold); variant="primary" quando ativo
+- `field-binding`: componente `FieldBindingProp` — select Módulo (useModules()) + select Campo (GET `/v1/module-fields?module_id={id}&per_page=100&active=true&sort=order&direction=asc`); ao selecionar ambos: grava `field_module`, `field_name`, `content="{slug}.{campo}"`
+
+**PROPERTIES.text:** field_binding → content → size → weight (align=text-align comentado)
+
+**PROPERTIES com keys:** todos os entries têm campo `key` para persistência em `props`
 
 #### PlatformsPage / TenantsPage — Grid + CRM modal
 
@@ -763,13 +791,20 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 
 **Localização:** Aba "Layout" no ModuleShowModal (inline + dialog). 9 subabas: Index, Show, Create, Edit, Delete, Restore, Print, Dashboard, Pública.
 
-**Implementado:** UI base do builder — sidebar colapsável com catálogo + properties panel, toolbar com TabsList/Tabs (9 subabas), stage com xadrez simulando Demo3Layout real (Header + Sidebar + Navbar + Footer reais via transform trick), fullscreen mode com header do módulo. Arquivo: `frontend/src/pages/modules/components/module-layout-tab.tsx`.
+**Implementado:**
+- UI base: sidebar colapsável + catálogo + properties panel, toolbar TabsList (9 subabas), stage com xadrez simulando Demo3Layout real, fullscreen mode
+- **Container com colunas** — DroppableCell por coluna, filhos arrastáveis (DraggableColChild), props por célula (span, padding, alinhamento, fundo)
+- **Painel de propriedades totalmente controlado** — select, text, number, toggle, font-size (stepper), font-weight (ButtonGroup), field-binding (seletor Módulo+Campo)
+- **Componente Texto** — campo dinâmico `{module}.{campo}` com badge visual; size e weight aplicados no stage
+- **Backend module_pages** — modelo, migrations (tc_master + tenant), rotas GET/POST, upsert por tab, ModuleObserver cria 9 pages ao criar módulo
+
+Arquivo: `frontend/src/pages/modules/components/module-layout-tab.tsx`.
 
 **Layout:** 3 colunas — Componentes (~15%) | Stage (~60%) | Painel (~25%)
 
 **6 componentes iniciais:** Container, Grid, Form, Cards, Btns, Texto.
 
-**Banco:** `module_components` (catálogo de tipos, hardcode) + `module_pages` (árvore JSON por módulo).
+**Banco:** `module_components` (catálogo de tipos, hardcode) + `module_pages` (árvore JSON por módulo) ✅.
 
 **Decisões técnicas:**
 1. Permissões por pessoa + método do módulo, sem granularidade por componente

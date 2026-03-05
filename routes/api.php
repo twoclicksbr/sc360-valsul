@@ -30,6 +30,9 @@ Route::prefix('v1')->group(function () {
         Route::get('modules/scan-files',           [ModuleController::class, 'scanFiles']);
         Route::get('modules/{id}/table-status',    [ModuleController::class, 'tableStatus']);
         Route::post('modules/{id}/generate-table', [ModuleController::class, 'generateTable']);
+        Route::get('modules/{id}/pages',           [ModuleController::class, 'getPages']);
+        Route::get('modules/{id}/pages/{tab}',     [ModuleController::class, 'getPage']);
+        Route::post('modules/{id}/pages/{tab}',    [ModuleController::class, 'savePage']);
 
         // Módulos genéricos
         Route::prefix('{module}')->group(function () {

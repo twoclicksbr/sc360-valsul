@@ -4,6 +4,7 @@ namespace App\Http\Controllers\System;
 
 use App\Http\Controllers\Controller;
 use App\Models\Module;
+use App\Models\ModulePage;
 use App\Services\TableGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -334,5 +335,77 @@ class ModuleController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    public function getPages(int $id): JsonResponse
+    {
+        Module::findOrFail($id);
+
+        $pages = ModulePage::where('module_id', $id)
+            ->orderBy('order')
+            ->get();
+
+        return response()->json($pages);
+    }
+
+    public function getPage(int $id, string $tab): JsonResponse
+    {
+        Module::findOrFail($id);
+
+        $page = ModulePage::where('module_id', $id)
+            ->where('tab', $tab)
+            ->first();
+
+        if (! $page) {
+            return response()->json(['message' => "Page '{$tab}' não encontrada para o módulo {$id}."], 404);
+        }
+
+        return response()->json($page);
+    }
+
+    public function savePage(Request $request, int $id, string $tab): JsonResponse
+    {
+        try {
+            Module::findOrFail($id);
+
+            $page = ModulePage::firstOrNew(['module_id' => $id, 'tab' => $tab]);
+
+            $data = ['layout' => $request->input('layout')];
+
+            if ($request->has('is_published')) {
+                $isPublished          = (bool) $request->input('is_published');
+                $data['is_published'] = $isPublished;
+
+                if ($isPublished) {
+                    $data['version'] = ($page->version ?? 0) + 1;
+                }
+            }
+
+            \Log::info('savePage debug', [
+                'module_id'   => $id,
+                'tab'         => $tab,
+                'is_new'      => ! $page->exists,
+                'connection'  => $page->getConnectionName(),
+                'data_layout' => is_array($request->input('layout')) ? count($request->input('layout')) . ' items' : gettype($request->input('layout')),
+                'data'        => $data,
+            ]);
+
+            $page->fill($data)->save();
+
+            return response()->json($page);
+        } catch (\Throwable $e) {
+            \Log::error('savePage error', [
+                'module_id' => $id,
+                'tab'       => $tab,
+                'message'   => $e->getMessage(),
+                'file'      => $e->getFile() . ':' . $e->getLine(),
+                'trace'     => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error'   => $e->getMessage(),
+                'file'    => $e->getFile() . ':' . $e->getLine(),
+            ], 500);
+        }
     }
 }
