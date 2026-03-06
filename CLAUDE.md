@@ -15,6 +15,7 @@
 - NÃO atualizar CLAUDE.md em tarefas normais — apenas o comando /docs faz isso
 - NÃO fazer git add/commit/push — o git só é executado pelo comando /docs
 - Implementar SOMENTE o código solicitado na tarefa
+- NÃO tentar adivinhar o que o usuário quer — aguardar direção explícita antes de sugerir próximos passos
 
 ## Comandos do Claude Code
 
