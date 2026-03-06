@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { GenericModal } from '@/components/generic-modal';
 import { apiGet } from '@/lib/api';
 import { useModules } from '@/providers/modules-provider';
-import { ModuleShowModal } from './module-show-modal';
+import { ModuleEdit } from './module-edit';
 
 // Context para interceptar show/edit e renderizar inline na página
 export const ModuleInlineCtx = createContext<((record: ModuleForEdit) => void) | null>(null);
@@ -198,7 +198,7 @@ export function ModuleModal({ open, onOpenChange, mode, record, onSuccess, modul
     <>
       {/* Modal CRM show — abre quando mode é 'edit' ou 'show' e não há contexto inline */}
       {!goInline && (
-        <ModuleShowModal
+        <ModuleEdit
           open={open && renderMode === 'show-crm'}
           onOpenChange={(isOpen) => { if (!isOpen) onOpenChange(false); }}
           record={record}

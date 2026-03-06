@@ -37,7 +37,7 @@ import { type ModuleForEdit } from './module-modal';
 import { ModuleFieldsTab } from './module-fields-tab';
 import { ModuleLayoutTab } from './components/module-layout-tab';
 
-interface ModuleShowModalProps {
+interface ModuleEditProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   record: ModuleForEdit | null;
@@ -76,7 +76,7 @@ const TYPE_LABELS: Record<string, { label: string; variant: 'primary' | 'seconda
   pivot:     { label: 'Pivot',     variant: 'warning' },
 };
 
-export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline = false, onBack }: ModuleShowModalProps) {
+export function ModuleEdit({ open, onOpenChange, record, onSuccess, inline = false, onBack }: ModuleEditProps) {
   const { refreshModules } = useModules();
   const [name, setName]             = useState('');
   const [slug, setSlug]             = useState('');
@@ -98,6 +98,12 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
   const [errors, setErrors]         = useState<FieldErrors>({});
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [activeTab, setActiveTab]   = useState('dados');
+  const [isLayoutFullscreen, setIsLayoutFullscreen] = useState(false);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'layout') setIsLayoutFullscreen(true);
+  };
   const [submodules, setSubmodules] = useState<Array<{ id: number; name: string; icon: string | null }>>([]);
   const [scanFiles, setScanFiles]   = useState<{
     models: string[];
@@ -714,7 +720,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
 
         <Separator />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 overflow-hidden">
           <TabsList variant="line" className="px-4 shrink-0">
             <TabsTrigger value="dados">Dados</TabsTrigger>
             <TabsTrigger value="campos">Campos</TabsTrigger>
@@ -732,7 +738,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
             <ModuleFieldsTab moduleId={record.id} mode="edit" active={activeTab === 'campos'} />
           </TabsContent>
           <TabsContent value="layout" className="p-0 flex flex-1 overflow-hidden">
-            <ModuleLayoutTab moduleId={record.id} moduleName={record.name} moduleActive={record.active ?? true} createdAt={record.created_at} updatedAt={record.updated_at} />
+            <ModuleLayoutTab moduleId={record.id} moduleName={record.name} moduleActive={record.active ?? true} createdAt={record.created_at} updatedAt={record.updated_at} activeTab={activeTab} onTabChange={handleTabChange} isFullscreen={isLayoutFullscreen} onFullscreenChange={setIsLayoutFullscreen} />
           </TabsContent>
           <TabsContent value="grid" className="p-4">
             <p className="text-sm text-muted-foreground">Em desenvolvimento</p>
@@ -806,7 +812,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
 
           <div className="flex flex-1 overflow-hidden">
             <div className="w-full flex flex-col overflow-hidden">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
+              <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 overflow-hidden">
                 <TabsList variant="line" className="px-4 shrink-0">
                   <TabsTrigger value="dados">Dados</TabsTrigger>
                   <TabsTrigger value="campos">Campos</TabsTrigger>
@@ -824,7 +830,7 @@ export function ModuleShowModal({ open, onOpenChange, record, onSuccess, inline 
                   <ModuleFieldsTab moduleId={record.id} mode="edit" active={activeTab === 'campos'} />
                 </TabsContent>
                 <TabsContent value="layout" className="flex-1 flex overflow-hidden p-0">
-                  <ModuleLayoutTab moduleId={record.id} moduleName={record.name} moduleActive={record.active ?? true} createdAt={record.created_at} updatedAt={record.updated_at} />
+                  <ModuleLayoutTab moduleId={record.id} moduleName={record.name} moduleActive={record.active ?? true} createdAt={record.created_at} updatedAt={record.updated_at} activeTab={activeTab} onTabChange={handleTabChange} isFullscreen={isLayoutFullscreen} onFullscreenChange={setIsLayoutFullscreen} />
                 </TabsContent>
                 <TabsContent value="grid" className="flex-1 overflow-y-auto p-6">
                   <p className="text-sm text-muted-foreground">Em desenvolvimento</p>

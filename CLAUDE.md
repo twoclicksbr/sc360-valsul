@@ -606,7 +606,7 @@ Consumidores:
 | `generic-grid.tsx` | Flat (FlatDndTable, DndSortableRow) | Plataformas, Tenants, Pessoas |
 | `generic-grid.tsx` | Grouped (GroupedDndSection, GroupedSortableRow) | Módulos (grid) |
 | `module-fields-tab.tsx` | Fields (FieldTableRow + SystemFieldRow com useSortableRow) | Módulos (aba Campos) |
-| `module-layout-tab.tsx` | Stage (DndContext + useDraggable para filhos de container) | Page Builder |
+| `module-layout-tab.tsx` | Stage (DndContext + useDraggable para filhos de container) + FieldsSelectProp (DnD de campos do Grid) | Page Builder |
 
 Regras:
 - Todos `DndContext` usam `useDndSensors()` + `dndAccessibility`
@@ -639,10 +639,13 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 - Coluna `name`: renderiza ícone Lucide (campo `record.icon`) ao lado do nome do módulo
 - Coluna `order` removida do grid (posição visual comunica a ordem)
 - Filtro de pesquisa: apenas por Tipo (removido filtro Proprietário)
-- Clique no nome → renderiza ModuleShowModal inline
-- ModuleShowModal tabs: Dados ✅, Campos ✅, Layout ✅, Grid (futuro), Form (futuro), Restrições (futuro), Seeds (futuro)
+- Clique no nome → renderiza `ModuleEdit` inline
+- `ModuleEdit` tabs: Dados ✅, Campos ✅, Layout ✅, Grid (futuro), Form (futuro), Restrições (futuro), Seeds (futuro)
 
-**ModuleShowModal — aba Dados:**
+**`ModuleEdit` (`pages/modules/module-edit.tsx`) — substitui `ModuleShowModal` (deletado):**
+- Props: `open`, `onOpenChange`, `record: ModuleForEdit | null`, `onSuccess`, `inline?`, `onBack?`
+- Funciona em dois modos: inline (renderiza dentro da página) e dialog (modal)
+- Inline: wrapper `<div className="flex flex-col overflow-hidden h-full">` em `page.tsx`
 - Header: botão "← Voltar" + `#ID` + Nome + badge Ativo/Inativo + badge Tipo (sem badge owner_level)
 - Campos: Ícone, Nome, Tipo, Slug, URL Prefix, Customizado (switch `is_custom`)
 - Quando `is_custom=true`: exibe comboboxes (Popover + Command + CommandInput) para Model, Request, Controller, Observer, Service e Page — todos com busca, populados via `scanFiles?slug=...`
@@ -650,10 +653,10 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
   - Pages agrupadas por slug do módulo; exibe apenas o filename; valor salvo é o caminho relativo (ex: `pages/modules/page.tsx`)
 - `scanFiles` disparado com `?slug={slug}` quando `isCustom=true` para incluir pages do módulo
 - `openCombo` state: controla qual combobox está aberto (string com nome do campo ou null)
-- Card "Configuração", "Ações de Comportamento" e "Descrições" removidos
-- Card "Submódulos": grid 4 colunas (era 3); visível apenas quando type=module
+- Card "Submódulos": grid 4 colunas; visível apenas quando type=module
+- Gerencia estado de fullscreen (`isLayoutFullscreen`) e repassa para `ModuleLayoutTab`
 
-**`ModuleShowModalProps`:** props `moduleId`, `parentName`, `parentIcon` removidas
+**`ModuleEditProps`:** `open`, `onOpenChange`, `record`, `onSuccess`, `inline?`, `onBack?`
 
 **`ModuleForEdit` interface:** removidos owner_level, owner_id, size_modal, description_*, after_*, screen_*; adicionados is_custom (bool), observer (string), service (string), page (string | null); model/request/controller agora string (não nullable)
 
@@ -685,10 +688,11 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 - `TableStatus` interface: `{ table_exists, table_name, changes: TableStatusChange[], has_pending_changes, dangerous_changes: DangerousChange[] }`
 
 **`ModuleLayoutTab` (aba Layout) — `pages/modules/components/module-layout-tab.tsx`:**
-- Props: `moduleId`, `moduleName`, `moduleActive`, `createdAt?`, `updatedAt?`
+- Props: `moduleId`, `moduleName`, `moduleActive`, `createdAt?`, `updatedAt?`, `activeTab?`, `onTabChange?`, `isFullscreen?`, `onFullscreenChange?`
+- Estado de fullscreen e aba ativa agora levantados para `ModuleEdit` (pai); fallback interno quando props não fornecidas
 - Sidebar esquerda colapsável (w-56 / w-10): header "Page Builder" com tooltip collapse/expand; catálogo de componentes ou painel de propriedades do selecionado
-- Catálogo: 10 componentes — Container, Texto, Grid, Form, Card, Botões, Abas, Gráfico, Imagem, Divisor
-- **Toolbar do builder**: `<Tabs>/<TabsList>/<TabsTrigger>` com PAGE_TABS (`{value, label}[]`: index, show, create, edit, delete, restore, print, dashboard, publica) + botões Preview/Fullscreen/Salvar
+- Catálogo: 11 componentes — Container, Texto, Badge, Grid, Form, Card, Botões, Abas, Gráfico, Imagem, Divisor
+- **Toolbar do builder**: `<Tabs>/<TabsList>/<TabsTrigger>` com PAGE_TABS (`{value, label}[]`: index, show, create, edit, delete, restore, print, dashboard, publica) + botões Preview/Fullscreen/Salvar; quando `onTabChange` prop fornecida, clique nas tabs chama o callback do pai
 - **Fullscreen mode** (`fixed inset-x-0 bottom-0 z-50`): renderiza header com Voltar + `#ID` + nome + badge ativo/tipo + timestamps; `top: var(--banner-height, 0px)`
 - **Stage**: fundo xadrez (`px-6 pt-6`); simula o Demo3Layout real usando componentes reais:
   - Técnica: `transform: translateZ(0)` no container cria containing block para `position: fixed`
@@ -711,12 +715,37 @@ Botões: Visualizar (Eye), Editar (Pencil), Deletar (Trash2), Restaurar (RotateC
 - Detecção de campo dinâmico: `/^\w+\.\w+$/.test(content)` → badge azul "⚡ {slug}.{campo}"
 - Texto livre: aplica `SIZE_MAP` (xs→text-xs...2xl→text-2xl) + `WEIGHT_MAP` (normal/medium/semibold/bold)
 
+**Componente Badge no stage:**
+- Tipo `badge` no catálogo (ícone `Tag`)
+- `BADGE_COLOR_MAP`: padrão (gray), success (green), danger (red), warning (yellow), info (blue)
+- Props: `field_binding` (campo dinâmico) + `rules` (regras de cor por valor)
+- `BadgeRulesProp`: editor de regras com lista `{ value, label, color }[]`; cor via select (padrão/verde/vermelho/amarelo/azul)
+
+**Componente Grid no stage:**
+- `GridPreview` — renderiza preview real usando `@tanstack/react-table` + `DataGrid`/`DataGridTable*` components; dados fake (3 linhas)
+- Colunas clicáveis no cabeçalho (exceto campos de sistema) → seleciona coluna e abre `GridColumnPanel`
+- `GridColumnPanel`: painel de propriedades por coluna (label, width value+unit, align esquerda/centro/direita)
+- `FieldItem` interface: `{ field, label, visible, system?, width?: { value, unit: '%'|'px' } | null, align?: 'left'|'center'|'right' }`
+- Campos de sistema: `SYSTEM_FIELDS_TOP` (drag, checkbox) + `SYSTEM_FIELDS_BOTTOM` (actions) — não arrastáveis, visíveis/ocultáveis
+- `onGridColumnSelect` prop em `StageItem`/`SortableStageItem`: callback ao clicar no cabeçalho de coluna
+
+**PROPERTIES.grid** (redesenhado):
+- `module_slug` (module-select) — seleciona módulo via `useModules()`
+- `fields` (fields-select) — lista com DnD de campos do módulo + campos de sistema; checkbox de visibilidade
+- `per_page` (select: 5/10/25/50)
+- `search` (toggle), `paginate` (toggle)
+
 **Painel de propriedades (GenericPropsBody):**
 - Todos os inputs controlados via `currentValues?.[prop.key]` + `onChange?.(key, value)`
-- Tipos suportados: `select`, `text`, `number`, `toggle`, `font-size`, `font-weight`, `field-binding`
+- Tipos suportados: `select`, `text`, `number`, `toggle`, `font-size`, `font-weight`, `field-binding`, `module-select`, `fields-select`, `fields-select-single`, `badge-rules`
 - `font-size`: ButtonGroup inline (div com border + overflow-hidden) — [AArrowDown] [valor] [AArrowUp]; stepper em `['xs','sm','base','lg','xl','2xl']`
 - `font-weight`: 4 botões toggle — Type(normal) | M(medium) | SB(semibold) | Bold(bold); variant="primary" quando ativo
 - `field-binding`: componente `FieldBindingProp` — select Módulo (useModules()) + select Campo (GET `/v1/module-fields?module_id={id}&per_page=100&active=true&sort=order&direction=asc`); ao selecionar ambos: grava `field_module`, `field_name`, `content="{slug}.{campo}"`
+- `module-select`: `ModuleSelectProp` — select nativo populado via `useModules()`
+- `fields-select`: `FieldsSelectProp` — lista DnD com campos do módulo + system fields (top/bottom); carrega via API `module-fields`; modo `single` disponível (`fields-select-single`)
+- `badge-rules`: `BadgeRulesProp` — editor de regras `{ value, label, color }[]` com botão adicionar/remover
+
+**`PropertiesPanel`** — atualizado com props `selectedGridColumn`, `onGridColumnBack`: quando coluna selecionada, exibe `GridColumnPanel` no lugar do painel padrão
 
 **PROPERTIES.text:** field_binding → content → size → weight (align=text-align comentado)
 
@@ -789,20 +818,22 @@ server: { host: '0.0.0.0', port: 5173, https: false, allowedHosts: ['.tc.test', 
 
 ## Page Builder (em desenvolvimento)
 
-**Localização:** Aba "Layout" no ModuleShowModal (inline + dialog). 9 subabas: Index, Show, Create, Edit, Delete, Restore, Print, Dashboard, Pública.
+**Localização:** Aba "Layout" no `ModuleEdit` (inline + dialog). 9 subabas: Index, Show, Create, Edit, Delete, Restore, Print, Dashboard, Pública.
 
 **Implementado:**
 - UI base: sidebar colapsável + catálogo + properties panel, toolbar TabsList (9 subabas), stage com xadrez simulando Demo3Layout real, fullscreen mode
 - **Container com colunas** — DroppableCell por coluna, filhos arrastáveis (DraggableColChild), props por célula (span, padding, alinhamento, fundo)
-- **Painel de propriedades totalmente controlado** — select, text, number, toggle, font-size (stepper), font-weight (ButtonGroup), field-binding (seletor Módulo+Campo)
+- **Painel de propriedades totalmente controlado** — select, text, number, toggle, font-size (stepper), font-weight (ButtonGroup), field-binding, module-select, fields-select, badge-rules
 - **Componente Texto** — campo dinâmico `{module}.{campo}` com badge visual; size e weight aplicados no stage
+- **Componente Badge** — campo dinâmico + regras de cor por valor (`BadgeRulesProp`)
+- **Componente Grid** — preview real com `@tanstack/react-table`; colunas clicáveis; `FieldsSelectProp` com DnD + system fields; `GridColumnPanel` para editar label/width/align por coluna
 - **Backend module_pages** — modelo, migrations (tc_master + tenant), rotas GET/POST, upsert por tab, ModuleObserver cria 9 pages ao criar módulo
 
 Arquivo: `frontend/src/pages/modules/components/module-layout-tab.tsx`.
 
 **Layout:** 3 colunas — Componentes (~15%) | Stage (~60%) | Painel (~25%)
 
-**6 componentes iniciais:** Container, Grid, Form, Cards, Btns, Texto.
+**7 componentes iniciais:** Container, Texto, Badge, Grid, Form, Cards, Btns.
 
 **Banco:** `module_components` (catálogo de tipos, hardcode) + `module_pages` (árvore JSON por módulo) ✅.
 

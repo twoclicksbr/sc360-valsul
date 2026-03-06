@@ -6,7 +6,7 @@ import { GenericGrid } from '@/components/generic-grid';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ModuleModal, ModuleInlineCtx, type ModuleForEdit } from './module-modal';
-import { ModuleShowModal } from './module-show-modal';
+import { ModuleEdit } from './module-edit';
 import { useModules } from '@/providers/modules-provider';
 
 export function ModulesPage() {
@@ -67,8 +67,8 @@ export function ModulesPage() {
 
   if (selectedModule !== null) {
     return (
-      <Container>
-        <ModuleShowModal
+      <div className="flex flex-col overflow-hidden h-full">
+        <ModuleEdit
           inline
           open={false}
           onOpenChange={() => {}}
@@ -76,7 +76,7 @@ export function ModulesPage() {
           onSuccess={handleSuccess}
           onBack={handleBack}
         />
-      </Container>
+      </div>
     );
   }
 
